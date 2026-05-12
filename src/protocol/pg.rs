@@ -1,4 +1,5 @@
 use gorust::net::AsyncTcpStream;
+use md5::{Md5, Digest};
 use std::net::SocketAddr;
 
 const PG_PROTOCOL_VERSION: i32 = 196608;
@@ -22,12 +23,18 @@ pub enum PgResult {
 
 pub struct PgConnection {
     stream: AsyncTcpStream,
+    username: String,
+    password: String,
 }
 
 impl PgConnection {
-    pub fn connect(addr: SocketAddr, username: &str, database: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn connect(addr: SocketAddr, username: &str, password: &str, database: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let stream = AsyncTcpStream::connect(addr)?;
-        let mut conn = PgConnection { stream };
+        let mut conn = PgConnection {
+            stream,
+            username: username.to_string(),
+            password: password.to_string(),
+        };
         conn.send_startup_message(username, database)?;
         conn.read_authentication()?;
         conn.read_until_ready()?;
@@ -66,8 +73,18 @@ impl PgConnection {
                         5 => {
                             let mut salt = [0u8; 4];
                             self.stream.read(&mut salt)?;
-                            let password = "";
-                            self.send_password_message(password)?;
+
+                            let mut hasher = Md5::new();
+                            hasher.update(self.password.as_bytes());
+                            hasher.update(self.username.as_bytes());
+                            let inner_hash = hex::encode(hasher.finalize_reset());
+
+                            hasher.update(inner_hash.as_bytes());
+                            hasher.update(&salt);
+                            let outer_hash = hex::encode(hasher.finalize());
+
+                            let md5_password = format!("md5{}", outer_hash);
+                            self.send_password_message(&md5_password)?;
                         }
                         _ => {}
                     }
@@ -110,7 +127,10 @@ impl PgConnection {
             let len = self.read_i32()?;
 
             match msg_type {
-                b'Z' => break,
+                b'Z' => {
+                    let _status = self.read_byte()?;
+                    break;
+                }
                 b'K' | b'S' | b'N' | b'T' | b'D' | b'C' => {
                     self.skip_bytes((len - 4) as usize)?;
                 }
@@ -206,7 +226,10 @@ impl PgConnection {
                     }
                     command_tag = String::from_utf8_lossy(&tag_buf).to_string();
                 }
-                b'Z' => break,
+                b'Z' => {
+                    let _status = self.read_byte()?;
+                    break;
+                }
                 b'E' => {
                     let mut err_buf = vec![0u8; (len - 4) as usize];
                     self.stream.read(&mut err_buf)?;

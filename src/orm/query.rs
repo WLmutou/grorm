@@ -44,14 +44,33 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
     pub fn insert(&mut self, model: &M) -> Result<Option<i64>, Box<dyn Error>> {
         let values = model.to_values();
         let columns = M::columns();
-        let placeholders: Vec<&str> = vec!["?"; columns.len()];
+        let pk = M::primary_key();
+
+        let pk_idx = columns.iter().position(|&c| c == pk);
+        let is_auto_increment = pk_idx.map(|i| {
+            matches!(&values[i], Value::I64(0) | Value::I32(0) | Value::Null)
+        }).unwrap_or(false);
+
+        let (cols, vals): (Vec<&str>, Vec<&Value>) = if is_auto_increment {
+            columns.iter().enumerate()
+                .filter(|(i, _)| Some(*i) != pk_idx)
+                .map(|(_, &c)| c)
+                .zip(values.iter().enumerate()
+                    .filter(|(i, _)| Some(*i) != pk_idx)
+                    .map(|(_, v)| v))
+                .unzip()
+        } else {
+            (columns.to_vec(), values.iter().collect())
+        };
+
+        let placeholders: Vec<&str> = vec!["?"; cols.len()];
         let sql = format!(
             "INSERT INTO {} ({}) VALUES ({})",
             M::table_name(),
-            columns.join(", "),
+            cols.join(", "),
             placeholders.join(", ")
         );
-        let params: Vec<Parameter> = values.iter().map(value_to_param).collect();
+        let params: Vec<Parameter> = vals.iter().map(|v| value_to_param(v)).collect();
         self.driver.execute(&sql, &params)?;
         self.driver.last_insert_id()
     }

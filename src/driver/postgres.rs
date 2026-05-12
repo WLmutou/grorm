@@ -40,7 +40,7 @@ impl DatabaseDriver for PostgresDriver {
         let addr_str = format!("{}:{}", config.host, config.port);
         let addr = addr_str.to_socket_addrs()?.next().ok_or("Failed to resolve address")?;
         
-        let conn = PgConnection::connect(addr, &config.username, &config.database)?;
+        let conn = PgConnection::connect(addr, &config.username, &config.password, &config.database)?;
         self.conn = Some(conn);
         self.config = Some(config.clone());
         Ok(())
@@ -52,16 +52,13 @@ impl DatabaseDriver for PostgresDriver {
     }
     
     fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Box<dyn Error>> {
-        // 将参数转换为字符串值数组
         let param_strs: Vec<String> = params.iter()
             .map(|p| p.as_sql_string(self.db_type()))
             .collect();
-        
-        // 简单替换占位符（生产环境需要更好的 SQL 构建）
+
         let mut final_sql = sql.to_string();
-        for (i, val) in param_strs.iter().enumerate() {
-            let placeholder = format!("${}", i + 1);
-            final_sql = final_sql.replace(&placeholder, val);
+        for val in param_strs.iter() {
+            final_sql = final_sql.replacen("?", val, 1);
         }
         
         match self.get_conn().execute_query(&final_sql)? {

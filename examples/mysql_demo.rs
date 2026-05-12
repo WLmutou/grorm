@@ -1,5 +1,6 @@
 use grorm::{ConnectionConfig, MysqlDriverFactory, ConnectionPool, QueryBuilder};
 use grorm_macros::Model;
+use gorust::runtime;
 
 #[derive(Debug, Model)]
 #[table = "users"]
@@ -10,6 +11,7 @@ struct User {
     age: i32,
 }
 
+#[runtime]
 fn main() {
     let config = ConnectionConfig::new("127.0.0.1", 3306, "root", "password", "testdb");
 

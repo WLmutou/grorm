@@ -279,17 +279,27 @@ impl SqliteConnection {
             String::new()
         };
 
-        let header = columns.join("|");
+        let has_id = columns.iter().any(|c| c.to_lowercase() == "id");
+        let (final_columns, mut final_values): (Vec<String>, Vec<String>) = if has_id {
+            (columns.to_vec(), values.to_vec())
+        } else {
+            let mut cols = vec!["id".to_string()];
+            cols.extend(columns.iter().cloned());
+            let row_count = if content.is_empty() { 0 } else { content.lines().count() };
+            let mut vals = vec![row_count.to_string()];
+            vals.extend(values.iter().cloned());
+            (cols, vals)
+        };
+
+        let header = final_columns.join("|");
         if !content.starts_with(&header) {
-            content = format!("{}\n{}", header, content);
+            content = format!("{}\n", header);
         }
 
-        let row_count = if content.is_empty() { 0 } else { content.lines().count() };
-
-        let mut final_values: Vec<String> = values.to_vec();
-        for (i, col) in columns.iter().enumerate() {
+        for (i, col) in final_columns.iter().enumerate() {
             let col_lower = col.to_lowercase();
             if col_lower == "id" && i < final_values.len() && final_values[i] == "0" {
+                let row_count = content.lines().count();
                 final_values[i] = row_count.to_string();
             }
         }

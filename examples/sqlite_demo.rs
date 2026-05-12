@@ -1,5 +1,6 @@
 use grorm::{ConnectionConfig, SqliteDriverFactory, ConnectionPool, QueryBuilder, Value};
 use grorm_macros::Model;
+use gorust::runtime;
 
 #[derive(Debug, Model)]
 #[table = "users"]
@@ -10,6 +11,7 @@ struct User {
     age: i32,
 }
 
+#[runtime]
 fn main() {
     let config = ConnectionConfig::new("localhost", 0, "", "", "target/testdb");
 
