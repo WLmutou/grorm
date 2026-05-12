@@ -51,7 +51,7 @@ impl DatabaseDriver for SqliteDriver {
         DatabaseType::Sqlite
     }
 
-    fn connect(&mut self, config: &ConnectionConfig) -> Result<(), Box<dyn Error>> {
+    fn connect(&mut self, config: &ConnectionConfig) -> Result<(), Error> {
         let path = if config.host == ":memory:" {
             ":memory:".to_string()
         } else {
@@ -63,12 +63,12 @@ impl DatabaseDriver for SqliteDriver {
         Ok(())
     }
 
-    fn close(&mut self) -> Result<(), Box<dyn Error>> {
+    fn close(&mut self) -> Result<(), Error> {
         self.conn = None;
         Ok(())
     }
 
-    fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Box<dyn Error>> {
+    fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Error> {
         let final_sql = Self::substitute_params(sql, params);
         let sql_upper = sql.trim().to_uppercase();
         match self.get_conn().execute_query(&final_sql)? {
@@ -105,16 +105,16 @@ impl DatabaseDriver for SqliteDriver {
         }
     }
 
-    fn execute(&mut self, sql: &str, params: &[Parameter]) -> Result<u64, Box<dyn Error>> {
+    fn execute(&mut self, sql: &str, params: &[Parameter]) -> Result<u64, Error> {
         let result = self.query(sql, params)?;
         Ok(result.affected_rows)
     }
 
-    fn prepare(&mut self, _name: &str, _sql: &str) -> Result<(), Box<dyn Error>> {
+    fn prepare(&mut self, _name: &str, _sql: &str) -> Result<(), Error> {
         Ok(())
     }
 
-    fn execute_prepared(&mut self, _name: &str, _params: &[Parameter]) -> Result<QueryResult, Box<dyn Error>> {
+    fn execute_prepared(&mut self, _name: &str, _params: &[Parameter]) -> Result<QueryResult, Error> {
         Ok(QueryResult {
             rows: Vec::new(),
             affected_rows: 0,
@@ -122,17 +122,17 @@ impl DatabaseDriver for SqliteDriver {
         })
     }
 
-    fn begin(&mut self) -> Result<(), Box<dyn Error>> {
+    fn begin(&mut self) -> Result<(), Error> {
         self.get_conn().execute_query("BEGIN")?;
         Ok(())
     }
 
-    fn commit(&mut self) -> Result<(), Box<dyn Error>> {
+    fn commit(&mut self) -> Result<(), Error> {
         self.get_conn().execute_query("COMMIT")?;
         Ok(())
     }
 
-    fn rollback(&mut self) -> Result<(), Box<dyn Error>> {
+    fn rollback(&mut self) -> Result<(), Error> {
         self.get_conn().execute_query("ROLLBACK")?;
         Ok(())
     }
@@ -141,7 +141,7 @@ impl DatabaseDriver for SqliteDriver {
         format!("\"{}\"", ident.replace('"', "\"\""))
     }
 
-    fn last_insert_id(&mut self) -> Result<Option<i64>, Box<dyn Error>> {
+    fn last_insert_id(&mut self) -> Result<Option<i64>, Error> {
         Ok(Some(self.last_row_id))
     }
 
@@ -149,7 +149,7 @@ impl DatabaseDriver for SqliteDriver {
         self.conn.is_some()
     }
 
-    fn version(&mut self) -> Result<String, Box<dyn Error>> {
+    fn version(&mut self) -> Result<String, Error> {
         let result = self.query("SELECT sqlite_version()", &[])?;
         if let Some(row) = result.rows.first() {
             if let Some(version) = row.get(0) {

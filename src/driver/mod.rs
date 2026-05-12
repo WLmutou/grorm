@@ -6,7 +6,7 @@ pub use postgres::{PostgresDriver, PostgresDriverFactory};
 pub use mysql::{MysqlDriver, MysqlDriverFactory};
 pub use sqlite::{SqliteDriver, SqliteDriverFactory};
 
-use std::error::Error;
+use crate::error::Error;
 
 /// 数据库连接配置
 #[derive(Debug, Clone)]
@@ -255,43 +255,43 @@ pub trait DatabaseDriver: Send + Sync {
     fn db_type(&self) -> DatabaseType;
     
     /// 建立连接
-    fn connect(&mut self, config: &ConnectionConfig) -> Result<(), Box<dyn Error>>;
+    fn connect(&mut self, config: &ConnectionConfig) -> Result<(), Error>;
     
     /// 关闭连接
-    fn close(&mut self) -> Result<(), Box<dyn Error>>;
+    fn close(&mut self) -> Result<(), Error>;
     
     /// 执行查询（返回结果集）
-    fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Box<dyn Error>>;
+    fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Error>;
     
     /// 执行命令（不返回结果集）
-    fn execute(&mut self, sql: &str, params: &[Parameter]) -> Result<u64, Box<dyn Error>>;
+    fn execute(&mut self, sql: &str, params: &[Parameter]) -> Result<u64, Error>;
     
     /// 准备语句
-    fn prepare(&mut self, name: &str, sql: &str) -> Result<(), Box<dyn Error>>;
+    fn prepare(&mut self, name: &str, sql: &str) -> Result<(), Error>;
     
     /// 执行已准备的语句
-    fn execute_prepared(&mut self, name: &str, params: &[Parameter]) -> Result<QueryResult, Box<dyn Error>>;
+    fn execute_prepared(&mut self, name: &str, params: &[Parameter]) -> Result<QueryResult, Error>;
     
     /// 开始事务
-    fn begin(&mut self) -> Result<(), Box<dyn Error>>;
+    fn begin(&mut self) -> Result<(), Error>;
     
     /// 提交事务
-    fn commit(&mut self) -> Result<(), Box<dyn Error>>;
+    fn commit(&mut self) -> Result<(), Error>;
     
     /// 回滚事务
-    fn rollback(&mut self) -> Result<(), Box<dyn Error>>;
+    fn rollback(&mut self) -> Result<(), Error>;
     
     /// 转义标识符（表名、列名）
     fn escape_identifier(&self, ident: &str) -> String;
     
     /// 获取最后插入的 ID
-    fn last_insert_id(&mut self) -> Result<Option<i64>, Box<dyn Error>>;
+    fn last_insert_id(&mut self) -> Result<Option<i64>, Error>;
     
     /// 连接是否有效
     fn is_connected(&self) -> bool;
     
     /// 获取当前连接的版本信息
-    fn version(&mut self) -> Result<String, Box<dyn Error>>;
+    fn version(&mut self) -> Result<String, Error>;
     
     /// 分页查询的 LIMIT/OFFSET 语法
     fn limit_offset_clause(&self, limit: Option<usize>, offset: Option<usize>) -> String;

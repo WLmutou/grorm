@@ -15,17 +15,17 @@ impl DatabaseDriver for MysqlDriver {
         DatabaseType::Mysql
     }
 
-    fn connect(&mut self, _config: &ConnectionConfig) -> Result<(), Box<dyn Error>> {
+    fn connect(&mut self, _config: &ConnectionConfig) -> Result<(), Error> {
         self.connected = true;
         Ok(())
     }
 
-    fn close(&mut self) -> Result<(), Box<dyn Error>> {
+    fn close(&mut self) -> Result<(), Error> {
         self.connected = false;
         Ok(())
     }
 
-    fn query(&mut self, _sql: &str, _params: &[Parameter]) -> Result<QueryResult, Box<dyn Error>> {
+    fn query(&mut self, _sql: &str, _params: &[Parameter]) -> Result<QueryResult, Error> {
         Ok(QueryResult {
             rows: Vec::new(),
             affected_rows: 0,
@@ -33,15 +33,15 @@ impl DatabaseDriver for MysqlDriver {
         })
     }
 
-    fn execute(&mut self, _sql: &str, _params: &[Parameter]) -> Result<u64, Box<dyn Error>> {
+    fn execute(&mut self, _sql: &str, _params: &[Parameter]) -> Result<u64, Error> {
         Ok(0)
     }
 
-    fn prepare(&mut self, _name: &str, _sql: &str) -> Result<(), Box<dyn Error>> {
+    fn prepare(&mut self, _name: &str, _sql: &str) -> Result<(), Error> {
         Ok(())
     }
 
-    fn execute_prepared(&mut self, _name: &str, _params: &[Parameter]) -> Result<QueryResult, Box<dyn Error>> {
+    fn execute_prepared(&mut self, _name: &str, _params: &[Parameter]) -> Result<QueryResult, Error> {
         Ok(QueryResult {
             rows: Vec::new(),
             affected_rows: 0,
@@ -49,15 +49,15 @@ impl DatabaseDriver for MysqlDriver {
         })
     }
 
-    fn begin(&mut self) -> Result<(), Box<dyn Error>> {
+    fn begin(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
-    fn commit(&mut self) -> Result<(), Box<dyn Error>> {
+    fn commit(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
-    fn rollback(&mut self) -> Result<(), Box<dyn Error>> {
+    fn rollback(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
@@ -65,7 +65,7 @@ impl DatabaseDriver for MysqlDriver {
         format!("`{}`", ident.replace('`', "``"))
     }
 
-    fn last_insert_id(&mut self) -> Result<Option<i64>, Box<dyn Error>> {
+    fn last_insert_id(&mut self) -> Result<Option<i64>, Error> {
         Ok(None)
     }
 
@@ -73,7 +73,7 @@ impl DatabaseDriver for MysqlDriver {
         self.connected
     }
 
-    fn version(&mut self) -> Result<String, Box<dyn Error>> {
+    fn version(&mut self) -> Result<String, Error> {
         Ok("MySQL 8.0".to_string())
     }
 

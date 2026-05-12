@@ -1,5 +1,6 @@
 // src/driver/postgres.rs
 use super::*;
+use crate::error::Error;
 use crate::protocol::pg::{PgConnection, PgResult};
 use std::net::ToSocketAddrs;
 
@@ -36,7 +37,7 @@ impl DatabaseDriver for PostgresDriver {
         DatabaseType::Postgresql
     }
     
-    fn connect(&mut self, config: &ConnectionConfig) -> Result<(), Box<dyn Error>> {
+    fn connect(&mut self, config: &ConnectionConfig) -> Result<(), Error> {
         let addr_str = format!("{}:{}", config.host, config.port);
         let addr = addr_str.to_socket_addrs()?.next().ok_or("Failed to resolve address")?;
         
@@ -46,12 +47,12 @@ impl DatabaseDriver for PostgresDriver {
         Ok(())
     }
     
-    fn close(&mut self) -> Result<(), Box<dyn Error>> {
+    fn close(&mut self) -> Result<(), Error> {
         self.conn = None;
         Ok(())
     }
     
-    fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Box<dyn Error>> {
+    fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Error> {
         let param_strs: Vec<String> = params.iter()
             .map(|p| p.as_sql_string(self.db_type()))
             .collect();
@@ -101,18 +102,18 @@ impl DatabaseDriver for PostgresDriver {
         }
     }
     
-    fn execute(&mut self, sql: &str, params: &[Parameter]) -> Result<u64, Box<dyn Error>> {
+    fn execute(&mut self, sql: &str, params: &[Parameter]) -> Result<u64, Error> {
         let result = self.query(sql, params)?;
         Ok(result.affected_rows)
     }
     
-    fn prepare(&mut self, name: &str, sql: &str) -> Result<(), Box<dyn Error>> {
+    fn prepare(&mut self, name: &str, sql: &str) -> Result<(), Error> {
         self.get_conn().prepare(name, sql)?;
         self.prepared_statements.insert(name.to_string(), sql.to_string());
         Ok(())
     }
     
-    fn execute_prepared(&mut self, name: &str, params: &[Parameter]) -> Result<QueryResult, Box<dyn Error>> {
+    fn execute_prepared(&mut self, name: &str, params: &[Parameter]) -> Result<QueryResult, Error> {
         let param_strs: Vec<String> = params.iter()
             .map(|p| p.as_sql_string(self.db_type()))
             .collect();
@@ -147,17 +148,17 @@ impl DatabaseDriver for PostgresDriver {
         }
     }
     
-    fn begin(&mut self) -> Result<(), Box<dyn Error>> {
+    fn begin(&mut self) -> Result<(), Error> {
         self.get_conn().execute_query("BEGIN")?;
         Ok(())
     }
     
-    fn commit(&mut self) -> Result<(), Box<dyn Error>> {
+    fn commit(&mut self) -> Result<(), Error> {
         self.get_conn().execute_query("COMMIT")?;
         Ok(())
     }
     
-    fn rollback(&mut self) -> Result<(), Box<dyn Error>> {
+    fn rollback(&mut self) -> Result<(), Error> {
         self.get_conn().execute_query("ROLLBACK")?;
         Ok(())
     }
@@ -166,7 +167,7 @@ impl DatabaseDriver for PostgresDriver {
         format!("\"{}\"", ident.replace('"', "\"\""))
     }
     
-    fn last_insert_id(&mut self) -> Result<Option<i64>, Box<dyn Error>> {
+    fn last_insert_id(&mut self) -> Result<Option<i64>, Error> {
         // PostgreSQL uses RETURNING clause, so last_insert_id might not be directly available
         // This is a fallback using currval
         let result = self.query("SELECT LASTVAL()", &[])?;
@@ -182,7 +183,7 @@ impl DatabaseDriver for PostgresDriver {
         self.conn.is_some()
     }
     
-    fn version(&mut self) -> Result<String, Box<dyn Error>> {
+    fn version(&mut self) -> Result<String, Error> {
         let result = self.query("SELECT version()", &[])?;
         if let Some(row) = result.rows.first() {
             if let Some(version) = row.get(0) {

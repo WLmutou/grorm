@@ -58,7 +58,7 @@ pub struct SqliteConnection {
 }
 
 impl SqliteConnection {
-    pub fn connect(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn connect(path: &str) -> Result<Self, crate::error::Error> {
         let db_path = PathBuf::from(path);
         let exists = db_path.exists();
 
@@ -79,7 +79,7 @@ impl SqliteConnection {
         Ok(conn)
     }
 
-    fn open_existing(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn open_existing(&mut self) -> Result<(), crate::error::Error> {
         let mut file = fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -107,7 +107,7 @@ impl SqliteConnection {
         Ok(())
     }
 
-    fn create_new(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn create_new(&mut self) -> Result<(), crate::error::Error> {
         let mut file = fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -128,7 +128,7 @@ impl SqliteConnection {
         Ok(())
     }
 
-    pub fn execute_query(&mut self, sql: &str) -> Result<SqliteResult, Box<dyn std::error::Error>> {
+    pub fn execute_query(&mut self, sql: &str) -> Result<SqliteResult, crate::error::Error> {
         let sql_upper = sql.trim().to_uppercase();
 
         if sql_upper.starts_with("CREATE TABLE") || sql_upper.starts_with("CREATE INDEX")
@@ -163,7 +163,7 @@ impl SqliteConnection {
         Ok(SqliteResult::Done(0))
     }
 
-    fn execute_ddl(&mut self, sql: &str) -> Result<SqliteResult, Box<dyn std::error::Error>> {
+    fn execute_ddl(&mut self, sql: &str) -> Result<SqliteResult, crate::error::Error> {
         let sql_upper = sql.trim().to_uppercase();
         if sql_upper.starts_with("CREATE TABLE") {
             let table_name = self.extract_create_table_name(sql)?;
@@ -172,7 +172,7 @@ impl SqliteConnection {
         Ok(SqliteResult::Done(0))
     }
 
-    fn execute_dml(&mut self, sql: &str) -> Result<SqliteResult, Box<dyn std::error::Error>> {
+    fn execute_dml(&mut self, sql: &str) -> Result<SqliteResult, crate::error::Error> {
         let sql_upper = sql.trim().to_uppercase();
         if sql_upper.starts_with("INSERT") {
             let table_name = self.extract_table_name_from_insert(sql)?;
@@ -193,7 +193,7 @@ impl SqliteConnection {
         }
     }
 
-    fn execute_select(&mut self, sql: &str) -> Result<SqliteResult, Box<dyn std::error::Error>> {
+    fn execute_select(&mut self, sql: &str) -> Result<SqliteResult, crate::error::Error> {
         let sql_upper = sql.trim().to_uppercase();
         if sql_upper.starts_with("SELECT") {
             if !sql_upper.contains("FROM") {
@@ -238,7 +238,7 @@ impl SqliteConnection {
         }
     }
 
-    fn begin_transaction(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn begin_transaction(&mut self) -> Result<(), crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
         let prefix = self.db_path.file_stem().unwrap_or_default().to_string_lossy();
 
@@ -258,12 +258,12 @@ impl SqliteConnection {
         Ok(())
     }
 
-    fn commit_transaction(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn commit_transaction(&mut self) -> Result<(), crate::error::Error> {
         self.tx_backups.clear();
         Ok(())
     }
 
-    fn rollback_transaction(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn rollback_transaction(&mut self) -> Result<(), crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
         for (fname, content) in &self.tx_backups {
             let path = schema_dir.join(fname);
@@ -273,7 +273,7 @@ impl SqliteConnection {
         Ok(())
     }
 
-    fn read_header_columns(&self, table_name: &str) -> Result<Vec<SqliteColumnInfo>, Box<dyn std::error::Error>> {
+    fn read_header_columns(&self, table_name: &str) -> Result<Vec<SqliteColumnInfo>, crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
         let data_path = schema_dir.join(format!("{}.{}.data",
             self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
@@ -296,7 +296,7 @@ impl SqliteConnection {
         }
     }
 
-    fn store_schema(&mut self, table_name: &str, sql: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn store_schema(&mut self, table_name: &str, sql: &str) -> Result<(), crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
         let schema_path = schema_dir.join(format!("{}.schema", 
             self.db_path.file_stem().unwrap_or_default().to_string_lossy()));
@@ -323,7 +323,7 @@ impl SqliteConnection {
         Ok(())
     }
 
-    fn store_row(&mut self, table_name: &str, columns: &[String], values: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    fn store_row(&mut self, table_name: &str, columns: &[String], values: &[String]) -> Result<(), crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
         let data_path = schema_dir.join(format!("{}.{}.data",
             self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
@@ -368,7 +368,7 @@ impl SqliteConnection {
         Ok(())
     }
 
-    fn read_rows(&mut self, table_name: &str, columns: &[String], sql: &str) -> Result<Vec<Vec<String>>, Box<dyn std::error::Error>> {
+    fn read_rows(&mut self, table_name: &str, columns: &[String], sql: &str) -> Result<Vec<Vec<String>>, crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
         let data_path = schema_dir.join(format!("{}.{}.data",
             self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
@@ -485,7 +485,7 @@ impl SqliteConnection {
         None
     }
 
-    pub fn count_rows(&self, table_name: &str) -> Result<usize, Box<dyn std::error::Error>> {
+    pub fn count_rows(&self, table_name: &str) -> Result<usize, crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
         let data_path = schema_dir.join(format!("{}.{}.data",
             self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
@@ -504,7 +504,7 @@ impl SqliteConnection {
         }
     }
 
-    fn delete_rows(&mut self, table_name: &str, sql: &str) -> Result<usize, Box<dyn std::error::Error>> {
+    fn delete_rows(&mut self, table_name: &str, sql: &str) -> Result<usize, crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
         let data_path = schema_dir.join(format!("{}.{}.data",
             self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
@@ -548,7 +548,7 @@ impl SqliteConnection {
         Ok(deleted)
     }
 
-    fn extract_create_table_name(&self, sql: &str) -> Result<String, Box<dyn std::error::Error>> {
+    fn extract_create_table_name(&self, sql: &str) -> Result<String, crate::error::Error> {
         let sql_upper = sql.to_uppercase();
         if let Some(pos) = sql_upper.find("CREATE TABLE") {
             let rest = &sql[pos + 13..].trim();
@@ -571,7 +571,7 @@ impl SqliteConnection {
         Err("Cannot extract table name".into())
     }
 
-    fn extract_table_name_from_insert(&self, sql: &str) -> Result<String, Box<dyn std::error::Error>> {
+    fn extract_table_name_from_insert(&self, sql: &str) -> Result<String, crate::error::Error> {
         let sql_upper = sql.to_uppercase();
         if let Some(pos) = sql_upper.find("INTO") {
             let rest = &sql[pos + 4..].trim();
@@ -585,7 +585,7 @@ impl SqliteConnection {
         Err("Cannot extract table name".into())
     }
 
-    fn extract_table_name_from_delete(&self, sql: &str) -> Result<String, Box<dyn std::error::Error>> {
+    fn extract_table_name_from_delete(&self, sql: &str) -> Result<String, crate::error::Error> {
         let sql_upper = sql.to_uppercase();
         if let Some(pos) = sql_upper.find("FROM") {
             let rest = &sql[pos + 4..].trim();
@@ -599,7 +599,7 @@ impl SqliteConnection {
         Err("Cannot extract table name".into())
     }
 
-    fn extract_table_name_from_update(&self, sql: &str) -> Result<String, Box<dyn std::error::Error>> {
+    fn extract_table_name_from_update(&self, sql: &str) -> Result<String, crate::error::Error> {
         let sql_upper = sql.to_uppercase();
         if let Some(pos) = sql_upper.find("UPDATE") {
             let rest = &sql[pos + 6..].trim();
@@ -613,7 +613,7 @@ impl SqliteConnection {
         Err("Cannot extract table name".into())
     }
 
-    fn update_rows(&mut self, table_name: &str, sql: &str) -> Result<usize, Box<dyn std::error::Error>> {
+    fn update_rows(&mut self, table_name: &str, sql: &str) -> Result<usize, crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
         let data_path = schema_dir.join(format!("{}.{}.data",
             self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
@@ -693,7 +693,7 @@ impl SqliteConnection {
         pairs
     }
 
-    fn extract_table_name_from_select(&self, sql: &str) -> Result<String, Box<dyn std::error::Error>> {
+    fn extract_table_name_from_select(&self, sql: &str) -> Result<String, crate::error::Error> {
         let sql_upper = sql.to_uppercase();
         if let Some(pos) = sql_upper.find("FROM") {
             let rest = &sql[pos + 4..].trim();
@@ -707,7 +707,7 @@ impl SqliteConnection {
         Err("Cannot extract table name".into())
     }
 
-    fn extract_columns_from_insert(&self, sql: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fn extract_columns_from_insert(&self, sql: &str) -> Result<Vec<String>, crate::error::Error> {
         if let Some(start) = sql.find('(') {
             if let Some(end) = sql[start..].find(')') {
                 let cols_str = &sql[start + 1..start + end];
@@ -720,7 +720,7 @@ impl SqliteConnection {
         Ok(Vec::new())
     }
 
-    fn extract_values_from_insert(&self, sql: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fn extract_values_from_insert(&self, sql: &str) -> Result<Vec<String>, crate::error::Error> {
         let sql_upper = sql.to_uppercase();
         if let Some(pos) = sql_upper.find("VALUES") {
             let rest = &sql[pos + 6..].trim();
@@ -737,7 +737,7 @@ impl SqliteConnection {
         Ok(Vec::new())
     }
 
-    fn extract_select_columns(&self, sql: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    fn extract_select_columns(&self, sql: &str) -> Result<Vec<String>, crate::error::Error> {
         let sql_upper = sql.to_uppercase();
         if let Some(select_pos) = sql_upper.find("SELECT") {
             if let Some(from_pos) = sql_upper.find("FROM") {

@@ -1,7 +1,7 @@
 use crate::driver::{ConnectionConfig, DatabaseDriver, DriverFactory};
 use gorust::channel::{self, Sender, Receiver};
 use std::collections::VecDeque;
-use std::error::Error;
+use crate::error::Error;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use parking_lot::Mutex;
@@ -44,7 +44,7 @@ impl ConnectionPool {
         ConnectionPool { inner }
     }
 
-    pub fn get(&self) -> Result<PoolConnection, Box<dyn Error>> {
+    pub fn get(&self) -> Result<PoolConnection, Error> {
         {
             let mut available = self.inner.available.lock();
             if let Some(idx) = available.pop_front() {

@@ -28,7 +28,7 @@ pub struct PgConnection {
 }
 
 impl PgConnection {
-    pub fn connect(addr: SocketAddr, username: &str, password: &str, database: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn connect(addr: SocketAddr, username: &str, password: &str, database: &str) -> Result<Self, crate::error::Error> {
         let stream = AsyncTcpStream::connect(addr)?;
         let mut conn = PgConnection {
             stream,
@@ -41,7 +41,7 @@ impl PgConnection {
         Ok(conn)
     }
 
-    fn send_startup_message(&mut self, username: &str, database: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn send_startup_message(&mut self, username: &str, database: &str) -> Result<(), crate::error::Error> {
         let mut buf = Vec::new();
         buf.extend_from_slice(&PG_PROTOCOL_VERSION.to_be_bytes());
         buf.extend_from_slice(b"user\0");
@@ -60,7 +60,7 @@ impl PgConnection {
         Ok(())
     }
 
-    fn read_authentication(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn read_authentication(&mut self) -> Result<(), crate::error::Error> {
         loop {
             let msg_type = self.read_byte()?;
             let len = self.read_i32()?;
@@ -110,7 +110,7 @@ impl PgConnection {
         Ok(())
     }
 
-    fn send_password_message(&mut self, password: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn send_password_message(&mut self, password: &str) -> Result<(), crate::error::Error> {
         let mut buf = Vec::new();
         buf.push(b'p');
         let content = format!("{}\0", password);
@@ -121,7 +121,7 @@ impl PgConnection {
         Ok(())
     }
 
-    fn read_until_ready(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn read_until_ready(&mut self) -> Result<(), crate::error::Error> {
         loop {
             let msg_type = self.read_byte()?;
             let len = self.read_i32()?;
@@ -147,12 +147,12 @@ impl PgConnection {
         Ok(())
     }
 
-    pub fn execute_query(&mut self, sql: &str) -> Result<PgResult, Box<dyn std::error::Error>> {
+    pub fn execute_query(&mut self, sql: &str) -> Result<PgResult, crate::error::Error> {
         self.send_query(sql)?;
         self.read_query_result()
     }
 
-    fn send_query(&mut self, sql: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn send_query(&mut self, sql: &str) -> Result<(), crate::error::Error> {
         let mut buf = Vec::new();
         buf.push(b'Q');
         let content = format!("{}\0", sql);
@@ -163,7 +163,7 @@ impl PgConnection {
         Ok(())
     }
 
-    fn read_query_result(&mut self) -> Result<PgResult, Box<dyn std::error::Error>> {
+    fn read_query_result(&mut self) -> Result<PgResult, crate::error::Error> {
         let mut columns: Vec<PgColumnInfo> = Vec::new();
         let mut rows: Vec<Vec<String>> = Vec::new();
         let mut command_tag = String::new();
@@ -253,7 +253,7 @@ impl PgConnection {
         }
     }
 
-    pub fn prepare(&mut self, name: &str, sql: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn prepare(&mut self, name: &str, sql: &str) -> Result<(), crate::error::Error> {
         let mut buf = Vec::new();
         buf.push(b'P');
         let stmt_name = format!("{}\0", name);
@@ -280,7 +280,7 @@ impl PgConnection {
         Ok(())
     }
 
-    pub fn execute_prepared(&mut self, name: &str, params: &[&str]) -> Result<PgResult, Box<dyn std::error::Error>> {
+    pub fn execute_prepared(&mut self, name: &str, params: &[&str]) -> Result<PgResult, crate::error::Error> {
         let mut buf = Vec::new();
         buf.push(b'B');
         let portal = "\0";
@@ -330,25 +330,25 @@ impl PgConnection {
         self.read_query_result()
     }
 
-    fn read_byte(&mut self) -> Result<u8, Box<dyn std::error::Error>> {
+    fn read_byte(&mut self) -> Result<u8, crate::error::Error> {
         let mut buf = [0u8; 1];
         self.stream.read(&mut buf)?;
         Ok(buf[0])
     }
 
-    fn read_i16(&mut self) -> Result<i16, Box<dyn std::error::Error>> {
+    fn read_i16(&mut self) -> Result<i16, crate::error::Error> {
         let mut buf = [0u8; 2];
         self.stream.read(&mut buf)?;
         Ok(i16::from_be_bytes(buf))
     }
 
-    fn read_i32(&mut self) -> Result<i32, Box<dyn std::error::Error>> {
+    fn read_i32(&mut self) -> Result<i32, crate::error::Error> {
         let mut buf = [0u8; 4];
         self.stream.read(&mut buf)?;
         Ok(i32::from_be_bytes(buf))
     }
 
-    fn skip_bytes(&mut self, count: usize) -> Result<(), Box<dyn std::error::Error>> {
+    fn skip_bytes(&mut self, count: usize) -> Result<(), crate::error::Error> {
         let mut buf = vec![0u8; count];
         self.stream.read(&mut buf)?;
         Ok(())

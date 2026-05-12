@@ -1,7 +1,7 @@
 use crate::driver::{DatabaseDriver, Parameter, Row};
 use crate::orm::model::Model;
 use crate::types::Value;
-use std::error::Error;
+use crate::error::Error;
 
 pub struct QueryBuilder<'a, M: Model> {
     driver: &'a mut dyn DatabaseDriver,
@@ -74,14 +74,14 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self
     }
 
-    pub fn find(&mut self) -> Result<Vec<M>, Box<dyn Error>> {
+    pub fn find(&mut self) -> Result<Vec<M>, Error> {
         let (sql, params) = self.build_select_sql();
         let result = self.driver.query(&sql, &params)?;
         self.reset_chain();
         self.parse_rows(&result.rows)
     }
 
-    pub fn find_one(&mut self) -> Result<Option<M>, Box<dyn Error>> {
+    pub fn find_one(&mut self) -> Result<Option<M>, Error> {
         self.limit_val = Some(1);
         let (sql, params) = self.build_select_sql();
         let result = self.driver.query(&sql, &params)?;
@@ -94,7 +94,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         }
     }
 
-    pub fn count(&mut self) -> Result<i64, Box<dyn Error>> {
+    pub fn count(&mut self) -> Result<i64, Error> {
         let mut sql = format!("SELECT COUNT(*) FROM {}", M::table_name());
         let params = self.flatten_conditions(&mut sql);
         self.reset_chain();
@@ -142,13 +142,13 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         params
     }
 
-    pub fn find_all(&mut self) -> Result<Vec<M>, Box<dyn Error>> {
+    pub fn find_all(&mut self) -> Result<Vec<M>, Error> {
         let sql = format!("SELECT * FROM {}", M::table_name());
         let result = self.driver.query(&sql, &[])?;
         self.parse_rows(&result.rows)
     }
 
-    pub fn find_by_id(&mut self, id: i64) -> Result<Option<M>, Box<dyn Error>> {
+    pub fn find_by_id(&mut self, id: i64) -> Result<Option<M>, Error> {
         let sql = format!("SELECT * FROM {} WHERE {} = ?", M::table_name(), M::primary_key());
         let params = vec![Parameter::Int(id)];
         let result = self.driver.query(&sql, &params)?;
@@ -160,14 +160,14 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         }
     }
 
-    pub fn find_where(&mut self, column: &str, value: Value) -> Result<Vec<M>, Box<dyn Error>> {
+    pub fn find_where(&mut self, column: &str, value: Value) -> Result<Vec<M>, Error> {
         let sql = format!("SELECT * FROM {} WHERE {} = ?", M::table_name(), column);
         let params = vec![value_to_param(&value)];
         let result = self.driver.query(&sql, &params)?;
         self.parse_rows(&result.rows)
     }
 
-    pub fn insert(&mut self, model: &M) -> Result<Option<i64>, Box<dyn Error>> {
+    pub fn insert(&mut self, model: &M) -> Result<Option<i64>, Error> {
         let values = model.to_values();
         let columns = M::columns();
         let pk = M::primary_key();
@@ -201,7 +201,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.driver.last_insert_id()
     }
 
-    pub fn update_one(&mut self, column: &str, value: Value) -> Result<u64, Box<dyn Error>> {
+    pub fn update_one(&mut self, column: &str, value: Value) -> Result<u64, Error> {
         let (where_clause, mut where_params) = self.build_where_clause();
         if where_clause.is_empty() {
             return Err("update requires at least one WHERE condition".into());
@@ -220,7 +220,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.driver.execute(&sql, &params)
     }
 
-    pub fn update_model(&mut self, model: &M) -> Result<u64, Box<dyn Error>> {
+    pub fn update_model(&mut self, model: &M) -> Result<u64, Error> {
         let values = model.to_values();
         let columns = M::columns();
 
@@ -255,7 +255,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.driver.execute(&sql, &set_params)
     }
 
-    pub fn delete(&mut self) -> Result<u64, Box<dyn Error>> {
+    pub fn delete(&mut self) -> Result<u64, Error> {
         let (where_clause, params) = self.build_where_clause();
         if where_clause.is_empty() {
             return Err("delete requires at least one WHERE condition".into());
@@ -278,23 +278,23 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         (format!(" WHERE {}", clauses.join(" AND ")), params)
     }
 
-    pub(crate) fn begin_tx(&mut self) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn begin_tx(&mut self) -> Result<(), Error> {
         self.driver.begin()
     }
 
-    pub(crate) fn commit_tx(&mut self) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn commit_tx(&mut self) -> Result<(), Error> {
         self.driver.commit()
     }
 
-    pub(crate) fn rollback_tx(&mut self) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn rollback_tx(&mut self) -> Result<(), Error> {
         self.driver.rollback()
     }
 
-    fn parse_rows(&self, rows: &[Row]) -> Result<Vec<M>, Box<dyn Error>> {
+    fn parse_rows(&self, rows: &[Row]) -> Result<Vec<M>, Error> {
         let mut results = Vec::new();
         for row in rows {
             let values = self.row_to_values(row);
-            let model = M::from_row(&values).map_err(|e| -> Box<dyn Error> { e.into() })?;
+            let model = M::from_row(&values).map_err(|e| -> Error { e.into() })?;
             results.push(model);
         }
         Ok(results)

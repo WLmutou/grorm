@@ -21,7 +21,7 @@ pub struct MyConnection {
 }
 
 impl MyConnection {
-    pub fn connect(addr: SocketAddr, username: &str, password: &str, database: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn connect(addr: SocketAddr, username: &str, password: &str, database: &str) -> Result<Self, crate::error::Error> {
         let stream = AsyncTcpStream::connect(addr)?;
         let mut conn = MyConnection { stream, sequence_id: 0 };
         conn.read_handshake()?;
@@ -30,7 +30,7 @@ impl MyConnection {
         Ok(conn)
     }
 
-    fn read_handshake(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn read_handshake(&mut self) -> Result<(), crate::error::Error> {
         let pkt_len = self.read_u24()?;
         let seq = self.read_u8()?;
         self.sequence_id = seq.wrapping_add(1);
@@ -58,7 +58,7 @@ impl MyConnection {
         Ok(())
     }
 
-    fn send_handshake_response(&mut self, username: &str, password: &str, database: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn send_handshake_response(&mut self, username: &str, password: &str, database: &str) -> Result<(), crate::error::Error> {
         let mut payload = Vec::new();
         payload.extend_from_slice(&0x0285a2ffu32.to_le_bytes());
         payload.extend_from_slice(&0x21u32.to_le_bytes());
@@ -110,7 +110,7 @@ impl MyConnection {
         Ok(())
     }
 
-    fn read_auth_result(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn read_auth_result(&mut self) -> Result<(), crate::error::Error> {
         let pkt_len = self.read_u24()?;
         let _seq = self.read_u8()?;
         self.sequence_id = 2;
@@ -137,7 +137,7 @@ impl MyConnection {
         }
     }
 
-    pub fn execute_query(&mut self, sql: &str) -> Result<MyResult, Box<dyn std::error::Error>> {
+    pub fn execute_query(&mut self, sql: &str) -> Result<MyResult, crate::error::Error> {
         self.sequence_id = 0;
         self.send_command(0x03, sql)?;
 
@@ -232,7 +232,7 @@ impl MyConnection {
         }
     }
 
-    fn read_column_definition(&mut self) -> Result<MyColumnInfo, Box<dyn std::error::Error>> {
+    fn read_column_definition(&mut self) -> Result<MyColumnInfo, crate::error::Error> {
         let pkt_len = self.read_u24()?;
         let _seq = self.read_u8()?;
 
@@ -270,21 +270,21 @@ impl MyConnection {
         Ok(MyColumnInfo { name, data_type, flags, decimals })
     }
 
-    fn read_eof(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn read_eof(&mut self) -> Result<(), crate::error::Error> {
         let pkt_len = self.read_u24()?;
         let _seq = self.read_u8()?;
         self.skip(pkt_len as usize)?;
         Ok(())
     }
 
-    fn send_command(&mut self, cmd: u8, arg: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn send_command(&mut self, cmd: u8, arg: &str) -> Result<(), crate::error::Error> {
         let mut payload = vec![cmd];
         payload.extend_from_slice(arg.as_bytes());
         self.send_packet(0, &payload)?;
         Ok(())
     }
 
-    fn send_packet(&mut self, seq: u8, payload: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    fn send_packet(&mut self, seq: u8, payload: &[u8]) -> Result<(), crate::error::Error> {
         let len = payload.len() as u32;
         let mut header = Vec::new();
         header.extend_from_slice(&len.to_le_bytes()[..3]);
@@ -294,36 +294,36 @@ impl MyConnection {
         Ok(())
     }
 
-    fn read_u8(&mut self) -> Result<u8, Box<dyn std::error::Error>> {
+    fn read_u8(&mut self) -> Result<u8, crate::error::Error> {
         let mut buf = [0u8; 1];
         self.stream.read(&mut buf)?;
         Ok(buf[0])
     }
 
-    fn read_u16(&mut self) -> Result<u16, Box<dyn std::error::Error>> {
+    fn read_u16(&mut self) -> Result<u16, crate::error::Error> {
         let mut buf = [0u8; 2];
         self.stream.read(&mut buf)?;
         Ok(u16::from_le_bytes(buf))
     }
 
-    fn read_u24(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
+    fn read_u24(&mut self) -> Result<u32, crate::error::Error> {
         let mut buf = [0u8; 3];
         self.stream.read(&mut buf)?;
         Ok(u32::from_le_bytes([buf[0], buf[1], buf[2], 0]))
     }
 
-    fn read_u32(&mut self) -> Result<u32, Box<dyn std::error::Error>> {
+    fn read_u32(&mut self) -> Result<u32, crate::error::Error> {
         let mut buf = [0u8; 4];
         self.stream.read(&mut buf)?;
         Ok(u32::from_le_bytes(buf))
     }
 
-    fn read_lenenc(&mut self) -> Result<u64, Box<dyn std::error::Error>> {
+    fn read_lenenc(&mut self) -> Result<u64, crate::error::Error> {
         let first = self.read_u8()?;
         self.read_lenenc_from_byte(first, &mut vec![0u8; 0])
     }
 
-    fn read_lenenc_from_byte(&mut self, first: u8, _buf: &mut Vec<u8>) -> Result<u64, Box<dyn std::error::Error>> {
+    fn read_lenenc_from_byte(&mut self, first: u8, _buf: &mut Vec<u8>) -> Result<u64, crate::error::Error> {
         match first {
             0xFB => Ok(0),
             0xFC => {
@@ -345,12 +345,12 @@ impl MyConnection {
         }
     }
 
-    fn stream_read(&mut self, buf: &mut [u8]) -> Result<(), Box<dyn std::error::Error>> {
+    fn stream_read(&mut self, buf: &mut [u8]) -> Result<(), crate::error::Error> {
         self.stream.read(buf)?;
         Ok(())
     }
 
-    fn skip(&mut self, count: usize) -> Result<(), Box<dyn std::error::Error>> {
+    fn skip(&mut self, count: usize) -> Result<(), crate::error::Error> {
         let mut buf = vec![0u8; count];
         self.stream.read(&mut buf)?;
         Ok(())
