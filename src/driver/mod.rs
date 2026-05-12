@@ -11,6 +11,7 @@ use crate::error::Error;
 /// 数据库连接配置
 #[derive(Debug, Clone)]
 pub struct ConnectionConfig {
+    pub db_type: String,
     pub host: String,
     pub port: u16,
     pub username: String,
@@ -23,6 +24,46 @@ pub struct ConnectionConfig {
 impl ConnectionConfig {
     pub fn new(host: &str, port: u16, username: &str, password: &str, database: &str) -> Self {
         ConnectionConfig {
+            db_type: String::new(),
+            host: host.to_string(),
+            port,
+            username: username.to_string(),
+            password: password.to_string(),
+            database: database.to_string(),
+            ssl_mode: SslMode::Disable,
+            max_connections: 10,
+        }
+    }
+
+    pub fn sqlite(db_path: &str) -> Self {
+        ConnectionConfig {
+            db_type: "sqlite".to_string(),
+            host: db_path.to_string(),
+            port: 0,
+            username: String::new(),
+            password: String::new(),
+            database: db_path.to_string(),
+            ssl_mode: SslMode::Disable,
+            max_connections: 10,
+        }
+    }
+
+    pub fn postgres(host: &str, port: u16, database: &str, username: &str, password: &str) -> Self {
+        ConnectionConfig {
+            db_type: "postgres".to_string(),
+            host: host.to_string(),
+            port,
+            username: username.to_string(),
+            password: password.to_string(),
+            database: database.to_string(),
+            ssl_mode: SslMode::Disable,
+            max_connections: 10,
+        }
+    }
+
+    pub fn mysql(host: &str, port: u16, database: &str, username: &str, password: &str) -> Self {
+        ConnectionConfig {
+            db_type: "mysql".to_string(),
             host: host.to_string(),
             port,
             username: username.to_string(),

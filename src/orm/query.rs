@@ -3,15 +3,19 @@ use crate::orm::model::Model;
 use crate::types::Value;
 use crate::error::Error;
 
+/// SQL JOIN type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
+    /// `LEFT JOIN` — returns all rows from the left table
     Left,
+    /// `INNER JOIN` — returns only matching rows from both tables
     Inner,
+    /// `RIGHT JOIN` — returns all rows from the right table
     Right,
 }
 
 impl JoinType {
-    fn as_sql(&self) -> &'static str {
+    pub fn as_sql(&self) -> &'static str {
         match self {
             JoinType::Left => "LEFT JOIN",
             JoinType::Inner => "INNER JOIN",
@@ -20,6 +24,7 @@ impl JoinType {
     }
 }
 
+/// A JOIN clause with type, target table, and ON condition.
 #[derive(Debug, Clone)]
 pub struct JoinClause {
     pub join_type: JoinType,
@@ -27,6 +32,36 @@ pub struct JoinClause {
     pub on_clause: String,
 }
 
+/// Chainable query builder for a model `M`.
+///
+/// Provides a fluent API for building and executing SQL queries.
+/// All chain methods return `&mut Self` for method chaining.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use grorm::{QueryBuilder, Value};
+///
+/// let mut qb = QueryBuilder::<User>::new(driver);
+///
+/// // Chainable query
+/// let users = qb
+///     .where_eq("age", Value::from(30))
+///     .order("name", true)
+///     .limit(10)
+///     .offset(0)
+///     .find()?;
+///
+/// // Chainable update
+/// let rows = qb
+///     .where_eq("id", Value::from(1))
+///     .update_one("age", Value::from(31))?;
+///
+/// // Chainable delete
+/// let rows = qb
+///     .where_eq("id", Value::from(99))
+///     .delete()?;
+/// ```
 pub struct QueryBuilder<'a, M: Model> {
     driver: &'a mut dyn DatabaseDriver,
     _marker: std::marker::PhantomData<M>,
@@ -38,6 +73,7 @@ pub struct QueryBuilder<'a, M: Model> {
 }
 
 impl<'a, M: Model> QueryBuilder<'a, M> {
+    /// Creates a new `QueryBuilder` with the given database driver.
     pub fn new(driver: &'a mut dyn DatabaseDriver) -> Self {
         QueryBuilder {
             driver,
@@ -58,15 +94,28 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.joins.clear();
     }
 
+    /// Returns the table name for the model.
     pub fn table_name(&self) -> &str {
         M::table_name()
     }
 
+    /// Adds a `WHERE column = value` condition.
+    ///
+    /// ```rust,ignore
+    /// qb.where_eq("name", Value::from("Alice")).find()?;
+    /// ```
     pub fn where_eq(&mut self, column: &str, value: Value) -> &mut Self {
         self.conditions.push((format!("{} = ?", column), vec![value_to_param(&value)]));
         self
     }
 
+    /// Adds WHERE conditions from non-zero/non-empty fields of a model.
+    ///
+    /// ```rust,ignore
+    /// let filter = User { id: 1, name: "".into(), email: "".into(), age: 0 };
+    /// qb.where_model(&filter).find()?;
+    /// // SELECT * FROM users WHERE id = 1
+    /// ```
     pub fn where_model(&mut self, model: &M) -> &mut Self {
         let values = model.to_values();
         let columns = M::columns();
@@ -78,6 +127,11 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self
     }
 
+    /// Adds a `WHERE column IN (v1, v2, ...)` condition.
+    ///
+    /// ```rust,ignore
+    /// qb.where_in("name", vec![Value::from("Alice"), Value::from("Bob")]).find()?;
+    /// ```
     pub fn where_in(&mut self, column: &str, values: Vec<Value>) -> &mut Self {
         if values.is_empty() {
             self.conditions.push(("1 = 0".to_string(), vec![]));
@@ -90,21 +144,29 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self
     }
 
+    /// Sets the LIMIT clause.
     pub fn limit(&mut self, n: usize) -> &mut Self {
         self.limit_val = Some(n);
         self
     }
 
+    /// Sets the OFFSET clause.
     pub fn offset(&mut self, n: usize) -> &mut Self {
         self.offset_val = Some(n);
         self
     }
 
+    /// Adds an ORDER BY clause. `asc = true` for ascending, `false` for descending.
     pub fn order(&mut self, column: &str, asc: bool) -> &mut Self {
         self.order_by.push((column.to_string(), asc));
         self
     }
 
+    /// Adds a LEFT JOIN clause.
+    ///
+    /// ```rust,ignore
+    /// qb.left_join("orders", "users.id = orders.user_id").find()?;
+    /// ```
     pub fn left_join(&mut self, table: &str, on_clause: &str) -> &mut Self {
         self.joins.push(JoinClause {
             join_type: JoinType::Left,
@@ -114,6 +176,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self
     }
 
+    /// Adds an INNER JOIN clause.
     pub fn inner_join(&mut self, table: &str, on_clause: &str) -> &mut Self {
         self.joins.push(JoinClause {
             join_type: JoinType::Inner,
@@ -123,6 +186,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self
     }
 
+    /// Adds a RIGHT JOIN clause.
     pub fn right_join(&mut self, table: &str, on_clause: &str) -> &mut Self {
         self.joins.push(JoinClause {
             join_type: JoinType::Right,
@@ -132,6 +196,8 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self
     }
 
+    /// Executes the query and returns all matching rows.
+    /// Resets chain conditions after execution.
     pub fn find(&mut self) -> Result<Vec<M>, Error> {
         let (sql, params) = self.build_select_sql();
         let result = self.driver.query(&sql, &params)?;
@@ -139,6 +205,8 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.parse_rows(&result.rows)
     }
 
+    /// Executes the query and returns the first matching row, if any.
+    /// Resets chain conditions after execution.
     pub fn find_one(&mut self) -> Result<Option<M>, Error> {
         self.limit_val = Some(1);
         let (sql, params) = self.build_select_sql();
@@ -152,6 +220,8 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         }
     }
 
+    /// Returns the count of rows matching the current conditions.
+    /// Resets chain conditions after execution.
     pub fn count(&mut self) -> Result<i64, Error> {
         let mut sql = format!("SELECT COUNT(*) FROM {}", M::table_name());
         let params = self.flatten_conditions(&mut sql);
@@ -165,7 +235,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         Ok(0)
     }
 
-    fn build_select_sql(&self) -> (String, Vec<Parameter>) {
+    pub fn build_select_sql(&self) -> (String, Vec<Parameter>) {
         let mut sql = format!("SELECT * FROM {}", M::table_name());
 
         for join in &self.joins {
@@ -210,6 +280,8 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         params
     }
 
+    /// Returns all rows from the table without any conditions.
+    /// Resets chain conditions after execution.
     pub fn find_all(&mut self) -> Result<Vec<M>, Error> {
         let (sql, params) = self.build_select_sql();
         let result = self.driver.query(&sql, &params)?;
@@ -217,6 +289,13 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.parse_rows(&result.rows)
     }
 
+    /// Creates the table for this model if it does not exist.
+    ///
+    /// Automatically generates DDL from the model's schema, including:
+    /// - Column types mapped to the target database
+    /// - Primary key constraints (including composite)
+    /// - Regular indexes (`#[index]`)
+    /// - Unique constraints (`#[unique]`, `#[unique_index = "name"]`)
     pub fn create_table(&mut self) -> Result<(), Error> {
         let schema = M::table_schema();
         let db_type = self.driver.db_type();
@@ -287,6 +366,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         Ok(())
     }
 
+    /// Finds a single row by its primary key value.
     pub fn find_by_id(&mut self, id: i64) -> Result<Option<M>, Error> {
         let sql = format!("SELECT * FROM {} WHERE {} = ?", M::table_name(), M::primary_key());
         let params = vec![Parameter::Int(id)];
@@ -299,6 +379,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         }
     }
 
+    /// Finds rows where a column equals a value (simple convenience method).
     pub fn find_where(&mut self, column: &str, value: Value) -> Result<Vec<M>, Error> {
         let sql = format!("SELECT * FROM {} WHERE {} = ?", M::table_name(), column);
         let params = vec![value_to_param(&value)];
@@ -306,6 +387,9 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.parse_rows(&result.rows)
     }
 
+    /// Inserts a model into the table.
+    ///
+    /// Returns the last insert ID if the primary key is auto-increment.
     pub fn insert(&mut self, model: &M) -> Result<Option<i64>, Error> {
         let values = model.to_values();
         let columns = M::columns();
@@ -340,6 +424,10 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.driver.last_insert_id()
     }
 
+    /// Updates a single column on rows matching the current WHERE conditions.
+    ///
+    /// Returns the number of rows affected.
+    /// Requires at least one WHERE condition for safety.
     pub fn update_one(&mut self, column: &str, value: Value) -> Result<u64, Error> {
         let (where_clause, mut where_params) = self.build_where_clause();
         if where_clause.is_empty() {
@@ -359,6 +447,10 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.driver.execute(&sql, &params)
     }
 
+    /// Updates multiple columns from a model's non-zero/non-empty fields.
+    ///
+    /// Returns the number of rows affected.
+    /// Requires at least one WHERE condition for safety.
     pub fn update_model(&mut self, model: &M) -> Result<u64, Error> {
         let values = model.to_values();
         let columns = M::columns();
@@ -394,6 +486,10 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.driver.execute(&sql, &set_params)
     }
 
+    /// Deletes rows matching the current WHERE conditions.
+    ///
+    /// Returns the number of rows affected.
+    /// Requires at least one WHERE condition for safety.
     pub fn delete(&mut self) -> Result<u64, Error> {
         let (where_clause, params) = self.build_where_clause();
         if where_clause.is_empty() {

@@ -19,6 +19,7 @@ struct PoolInner {
     current_size: AtomicUsize,
 }
 
+#[derive(Clone)]
 pub struct ConnectionPool {
     inner: Arc<PoolInner>,
 }
@@ -48,13 +49,14 @@ impl ConnectionPool {
         {
             let mut available = self.inner.available.lock();
             if let Some(idx) = available.pop_front() {
-                let connections = self.inner.connections.lock();
+                let mut connections = self.inner.connections.lock();
                 if let Some(Some(conn)) = connections.get(idx) {
                     if conn.is_connected() {
+                        let conn = connections[idx].take().unwrap();
                         return Ok(PoolConnection {
                             pool: self.inner.clone(),
                             index: idx,
-                            conn: None,
+                            conn: Some(conn),
                         });
                     }
                 }
@@ -83,12 +85,13 @@ impl ConnectionPool {
 
         let mut available = self.inner.available.lock();
         if let Some(idx) = available.pop_front() {
-            let connections = self.inner.connections.lock();
+            let mut connections = self.inner.connections.lock();
             if let Some(Some(_)) = connections.get(idx) {
+                let conn = connections[idx].take().unwrap();
                 return Ok(PoolConnection {
                     pool: self.inner.clone(),
                     index: idx,
-                    conn: None,
+                    conn: Some(conn),
                 });
             }
         }
