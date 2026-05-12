@@ -12,3 +12,10 @@ pub use driver::{SqliteDriver, SqliteDriverFactory};
 pub use pool::ConnectionPool;
 pub use orm::{Model, QueryBuilder, Transaction};
 pub use types::{FromSql, ToSql, Value};
+
+#[macro_export]
+macro_rules! find_where {
+    ($qb:expr, $obj:ident.$field:ident, $value:expr) => {
+        $qb.find_where(stringify!($field), $value)
+    };
+}

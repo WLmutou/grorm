@@ -16,26 +16,35 @@ pub enum SqliteResult {
     Done(u64),
 }
 
-struct WhereFilter {
-    col_idx: usize,
-    operator: String,
-    value: String,
+enum WhereFilter {
+    Simple { col_idx: usize, operator: String, value: String },
+    In { col_idx: usize, values: Vec<String> },
 }
 
 impl WhereFilter {
     fn matches(&self, _header: &[&str], values: &[&str]) -> bool {
-        if self.col_idx >= values.len() {
-            return false;
-        }
-        let actual = values[self.col_idx];
-        match self.operator.as_str() {
-            "=" => actual == self.value,
-            "!=" | "<>" => actual != self.value,
-            ">" => actual > self.value.as_str(),
-            "<" => actual < self.value.as_str(),
-            ">=" => actual >= self.value.as_str(),
-            "<=" => actual <= self.value.as_str(),
-            _ => false,
+        match self {
+            WhereFilter::Simple { col_idx, operator, value } => {
+                if *col_idx >= values.len() {
+                    return false;
+                }
+                let actual = values[*col_idx];
+                match operator.as_str() {
+                    "=" => actual == value,
+                    "!=" | "<>" => actual != value,
+                    ">" => actual > value.as_str(),
+                    "<" => actual < value.as_str(),
+                    ">=" => actual >= value.as_str(),
+                    "<=" => actual <= value.as_str(),
+                    _ => false,
+                }
+            }
+            WhereFilter::In { col_idx, values: in_vals } => {
+                if *col_idx >= values.len() {
+                    return false;
+                }
+                in_vals.iter().any(|v| v == values[*col_idx])
+            }
         }
     }
 }
@@ -45,6 +54,7 @@ pub struct SqliteConnection {
     file: Option<std::fs::File>,
     page_size: usize,
     page_count: usize,
+    tx_backups: std::collections::HashMap<String, String>,
 }
 
 impl SqliteConnection {
@@ -57,6 +67,7 @@ impl SqliteConnection {
             file: None,
             page_size: PAGE_SIZE,
             page_count: 0,
+            tx_backups: std::collections::HashMap::new(),
         };
 
         if exists {
@@ -136,8 +147,16 @@ impl SqliteConnection {
             return self.execute_select(sql);
         }
 
-        if sql_upper.starts_with("BEGIN") || sql_upper.starts_with("COMMIT")
-            || sql_upper.starts_with("ROLLBACK") {
+        if sql_upper.starts_with("BEGIN") {
+            self.begin_transaction()?;
+            return Ok(SqliteResult::Done(0));
+        }
+        if sql_upper.starts_with("COMMIT") {
+            self.commit_transaction()?;
+            return Ok(SqliteResult::Done(0));
+        }
+        if sql_upper.starts_with("ROLLBACK") {
+            self.rollback_transaction()?;
             return Ok(SqliteResult::Done(0));
         }
 
@@ -163,10 +182,12 @@ impl SqliteConnection {
             Ok(SqliteResult::Done(1))
         } else if sql_upper.starts_with("DELETE") {
             let table_name = self.extract_table_name_from_delete(sql)?;
-            self.delete_rows(&table_name, sql)?;
-            Ok(SqliteResult::Done(0))
+            let count = self.delete_rows(&table_name, sql)?;
+            Ok(SqliteResult::Done(count as u64))
         } else if sql_upper.starts_with("UPDATE") {
-            Ok(SqliteResult::Done(0))
+            let table_name = self.extract_table_name_from_update(sql)?;
+            let count = self.update_rows(&table_name, sql)?;
+            Ok(SqliteResult::Done(count as u64))
         } else {
             Ok(SqliteResult::Done(0))
         }
@@ -215,6 +236,41 @@ impl SqliteConnection {
         } else {
             Ok(SqliteResult::Rows(Vec::new(), Vec::new()))
         }
+    }
+
+    fn begin_transaction(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
+        let prefix = self.db_path.file_stem().unwrap_or_default().to_string_lossy();
+
+        if let Ok(entries) = fs::read_dir(schema_dir) {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let fname = entry.file_name().to_string_lossy().to_string();
+                    if fname.starts_with(prefix.as_ref()) && fname.ends_with(".data") {
+                        let path = entry.path();
+                        if let Ok(content) = fs::read_to_string(&path) {
+                            self.tx_backups.insert(fname, content);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn commit_transaction(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.tx_backups.clear();
+        Ok(())
+    }
+
+    fn rollback_transaction(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
+        for (fname, content) in &self.tx_backups {
+            let path = schema_dir.join(fname);
+            fs::write(&path, content)?;
+        }
+        self.tx_backups.clear();
+        Ok(())
     }
 
     fn read_header_columns(&self, table_name: &str) -> Result<Vec<SqliteColumnInfo>, Box<dyn std::error::Error>> {
@@ -337,15 +393,16 @@ impl SqliteConnection {
                 .collect()
         };
 
-        let where_filter = self.parse_where_clause(sql, &header);
+        let where_filters = self.parse_where_clause(sql, &header);
 
         let mut rows = Vec::new();
         for line in &lines[1..] {
             if line.is_empty() { continue; }
             let values: Vec<&str> = line.split('|').collect();
 
-            if let Some(ref filter) = where_filter {
-                if !filter.matches(&header, &values) {
+            if !where_filters.is_empty() {
+                let all_match = where_filters.iter().all(|f| f.matches(&header, &values));
+                if !all_match {
                     continue;
                 }
             }
@@ -366,37 +423,58 @@ impl SqliteConnection {
         Ok(rows)
     }
 
-    fn parse_where_clause(&self, sql: &str, header: &[&str]) -> Option<WhereFilter> {
+    fn parse_where_clause(&self, sql: &str, header: &[&str]) -> Vec<WhereFilter> {
         let sql_upper = sql.to_uppercase();
+        let mut filters = Vec::new();
+
         if let Some(where_pos) = sql_upper.find("WHERE") {
             let rest = &sql[where_pos + 5..].trim();
             let rest_upper = &sql_upper[where_pos + 5..].trim();
 
-            if let Some(and_pos) = rest_upper.find("AND") {
-                let cond = &rest[..and_pos].trim();
-                return self.parse_condition(cond, header);
-            }
+            let cond_end = rest_upper.find("ORDER")
+                .or_else(|| rest_upper.find("LIMIT"))
+                .unwrap_or(rest.len());
+            let where_part = &rest[..cond_end].trim();
 
-            if let Some(or_pos) = rest_upper.find("OR") {
-                let cond = &rest[..or_pos].trim();
-                return self.parse_condition(cond, header);
-            }
+            let parts: Vec<&str> = where_part.split("AND").collect();
 
-            let cond = rest.trim_end_matches(|c: char| c == ';' || c == ' ');
-            return self.parse_condition(cond, header);
+            for part in parts.iter() {
+                let part = part.trim();
+                if part.is_empty() { continue; }
+                if let Some(filter) = self.parse_condition(part, header) {
+                    filters.push(filter);
+                }
+            }
         }
-        None
+
+        filters
     }
 
     fn parse_condition(&self, cond: &str, header: &[&str]) -> Option<WhereFilter> {
         let cond = cond.trim();
-        let operators = ["=", "!=", "<>", ">=", "<=", ">", "<"];
+        let cond_upper = cond.to_uppercase();
+
+        if let Some(in_pos) = cond_upper.find("IN") {
+            let col_name = cond[..in_pos].trim().trim_matches(|c: char| c == '"' || c == '`' || c == '\'');
+            let after_in = &cond[in_pos + 2..].trim();
+            let paren_start = after_in.find('(')?;
+            let paren_end = after_in.rfind(')')?;
+            let values_str = &after_in[paren_start + 1..paren_end];
+            let values: Vec<String> = values_str.split(',')
+                .map(|v| v.trim().trim_matches(|c: char| c == '\'' || c == '"').to_string())
+                .collect();
+            if let Some(col_idx) = header.iter().position(|h| *h == col_name) {
+                return Some(WhereFilter::In { col_idx, values });
+            }
+        }
+
+        let operators = ["!=", "<>", ">=", "<=", "=", ">", "<"];
         for op in &operators {
             if let Some(pos) = cond.find(op) {
                 let col_name = cond[..pos].trim().trim_matches(|c: char| c == '"' || c == '`' || c == '\'');
                 let value = cond[pos + op.len()..].trim().trim_matches(|c: char| c == '"' || c == '\'');
                 if let Some(col_idx) = header.iter().position(|h| *h == col_name) {
-                    return Some(WhereFilter {
+                    return Some(WhereFilter::Simple {
                         col_idx,
                         operator: op.to_string(),
                         value: value.to_string(),
@@ -426,22 +504,48 @@ impl SqliteConnection {
         }
     }
 
-    fn delete_rows(&mut self, table_name: &str, _sql: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn delete_rows(&mut self, table_name: &str, sql: &str) -> Result<usize, Box<dyn std::error::Error>> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
         let data_path = schema_dir.join(format!("{}.{}.data",
             self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
             table_name));
 
-        if data_path.exists() {
-            let content = fs::read_to_string(&data_path)?;
-            let lines: Vec<&str> = content.lines().collect();
-            if !lines.is_empty() {
-                let header = lines[0];
-                fs::write(&data_path, format!("{}\n", header))?;
+        if !data_path.exists() {
+            return Ok(0);
+        }
+
+        let content = fs::read_to_string(&data_path)?;
+        let lines: Vec<&str> = content.lines().collect();
+        if lines.is_empty() {
+            return Ok(0);
+        }
+
+        let header: Vec<&str> = lines[0].split('|').collect();
+        let where_filters = self.parse_where_clause(sql, &header);
+
+        let mut deleted = 0;
+        let mut new_content = format!("{}\n", lines[0]);
+
+        for line in &lines[1..] {
+            if line.is_empty() { continue; }
+            let values: Vec<&str> = line.split('|').collect();
+
+            let should_delete = if where_filters.is_empty() {
+                true
+            } else {
+                where_filters.iter().all(|f| f.matches(&header, &values))
+            };
+
+            if should_delete {
+                deleted += 1;
+            } else {
+                new_content.push_str(line);
+                new_content.push('\n');
             }
         }
 
-        Ok(())
+        fs::write(&data_path, new_content)?;
+        Ok(deleted)
     }
 
     fn extract_create_table_name(&self, sql: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -493,6 +597,100 @@ impl SqliteConnection {
             return Ok(name);
         }
         Err("Cannot extract table name".into())
+    }
+
+    fn extract_table_name_from_update(&self, sql: &str) -> Result<String, Box<dyn std::error::Error>> {
+        let sql_upper = sql.to_uppercase();
+        if let Some(pos) = sql_upper.find("UPDATE") {
+            let rest = &sql[pos + 6..].trim();
+            let name = rest.split(|c: char| c.is_whitespace())
+                .next()
+                .unwrap_or("unknown")
+                .trim_matches(|c: char| c == '"' || c == '`' || c == '\'')
+                .to_string();
+            return Ok(name);
+        }
+        Err("Cannot extract table name".into())
+    }
+
+    fn update_rows(&mut self, table_name: &str, sql: &str) -> Result<usize, Box<dyn std::error::Error>> {
+        let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
+        let data_path = schema_dir.join(format!("{}.{}.data",
+            self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
+            table_name));
+
+        if !data_path.exists() {
+            return Ok(0);
+        }
+
+        let content = fs::read_to_string(&data_path)?;
+        let lines: Vec<&str> = content.lines().collect();
+        if lines.is_empty() {
+            return Ok(0);
+        }
+
+        let header: Vec<&str> = lines[0].split('|').collect();
+        let where_filters = self.parse_where_clause(sql, &header);
+        let set_pairs = self.parse_set_clause(sql, &header);
+
+        let mut updated = 0;
+        let mut new_content = format!("{}\n", lines[0]);
+
+        for line in &lines[1..] {
+            if line.is_empty() { continue; }
+            let values: Vec<&str> = line.split('|').collect();
+
+            let should_update = if where_filters.is_empty() {
+                true
+            } else {
+                where_filters.iter().all(|f| f.matches(&header, &values))
+            };
+
+            if should_update {
+                let mut new_values: Vec<String> = values.iter().map(|v| v.to_string()).collect();
+                for (col_idx, new_val) in &set_pairs {
+                    if *col_idx < new_values.len() {
+                        new_values[*col_idx] = new_val.clone();
+                    }
+                }
+                new_content.push_str(&new_values.join("|"));
+                new_content.push('\n');
+                updated += 1;
+            } else {
+                new_content.push_str(line);
+                new_content.push('\n');
+            }
+        }
+
+        fs::write(&data_path, new_content)?;
+        Ok(updated)
+    }
+
+    fn parse_set_clause(&self, sql: &str, header: &[&str]) -> Vec<(usize, String)> {
+        let sql_upper = sql.to_uppercase();
+        let mut pairs = Vec::new();
+
+        if let Some(set_pos) = sql_upper.find("SET") {
+            let after_set = &sql[set_pos + 3..].trim();
+            let set_end = after_set.find("WHERE")
+                .or_else(|| after_set.find("ORDER"))
+                .or_else(|| after_set.find("LIMIT"))
+                .unwrap_or(after_set.len());
+            let set_part = &after_set[..set_end].trim();
+
+            for part in set_part.split(',') {
+                let part = part.trim();
+                if let Some(eq_pos) = part.find('=') {
+                    let col_name = part[..eq_pos].trim().trim_matches(|c: char| c == '"' || c == '`' || c == '\'');
+                    let value = part[eq_pos + 1..].trim().trim_matches(|c: char| c == '"' || c == '\'');
+                    if let Some(col_idx) = header.iter().position(|h| *h == col_name) {
+                        pairs.push((col_idx, value.to_string()));
+                    }
+                }
+            }
+        }
+
+        pairs
     }
 
     fn extract_table_name_from_select(&self, sql: &str) -> Result<String, Box<dyn std::error::Error>> {

@@ -1,4 +1,4 @@
-use grorm::{ConnectionConfig, SqliteDriverFactory, ConnectionPool, QueryBuilder, Value};
+use grorm::{ConnectionConfig, SqliteDriverFactory, ConnectionPool, QueryBuilder, Transaction, Value};
 use grorm_macros::Model;
 use gorust::runtime;
 
@@ -26,35 +26,54 @@ fn main() {
         age INTEGER DEFAULT 0
     )", &[]).expect("Failed to create table");
 
-    let user = User {
-        id: 0,
-        name: "Charlie".to_string(),
-        email: "charlie@example.com".to_string(),
-        age: 28,
-    };
-
-    let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
-    let inserted_id = qb.insert(&user).expect("Failed to insert");
-    println!("Inserted user with id: {:?}", inserted_id);
-
-    let users = qb.find_all().expect("Failed to query");
-    for u in &users {
-        println!("User: {:?}", u);
+    // seed data
+    {
+        let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
+        qb.insert(&User { id: 0, name: "Alice".into(), email: "alice@x.com".into(), age: 30 }).unwrap();
+        qb.insert(&User { id: 0, name: "Bob".into(), email: "bob@x.com".into(), age: 25 }).unwrap();
+        qb.insert(&User { id: 0, name: "Charlie".into(), email: "charlie@x.com".into(), age: 35 }).unwrap();
     }
 
-    let f_user = qb.find_where(&user.name, Value::from("Charlie")).expect("Failed to find");
-    println!("Found user: {:?}", f_user);   
-
-    if let Some(found) = qb.find_by_id(1).expect("Failed to find by id") {
-        println!("Found by id: {:?}", found);
+    // where_in
+    {
+        let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
+        let users = qb.where_in("name", vec![
+            Value::from("Alice"),
+            Value::from("Bob"),
+        ]).find().expect("where_in find");
+        println!("where_in [Alice, Bob]: {:?}", users);
     }
 
-    let count = qb.count().expect("Failed to count");
-    println!("Total users: {}", count);
+    // transaction: update + insert atomically
+    {
+        let mut tx = Transaction::<User>::begin(conn.driver_mut()).expect("begin tx");
+        tx.where_eq("name", Value::from("Alice"))
+            .update_one("age", Value::from(31))
+            .expect("tx update_one");
+        tx.insert(&User { id: 0, name: "Dave".into(), email: "dave@x.com".into(), age: 40 })
+            .expect("tx insert");
+        tx.commit().expect("commit");
+        println!("Transaction committed");
+    }
 
-    qb.delete_by_id(1).expect("Failed to delete");
-    println!("Deleted user with id 1");
+    {
+        let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
+        let all = qb.find_all().expect("find_all");
+        println!("All users: {:?}", all);
+    }
 
-    let count_after = qb.count().expect("Failed to count");
-    println!("Total users after delete: {}", count_after);
+    // transaction: rollback on drop
+    {
+        let mut tx = Transaction::<User>::begin(conn.driver_mut()).expect("begin tx");
+        tx.where_eq("name", Value::from("Bob"))
+            .update_one("age", Value::from(99))
+            .expect("tx update");
+        println!("Transaction rolled back (drop)");
+    }
+
+    {
+        let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
+        let bob = qb.where_eq("name", Value::from("Bob")).find_one().expect("find_one");
+        println!("Bob after rollback: {:?}", bob);
+    }
 }
