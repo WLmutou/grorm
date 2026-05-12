@@ -10,8 +10,8 @@ keywords = ["orm", "database", "postgresql", "mysql", "sqlite", "gorust"]
 categories = ["database", "asynchronous"]
 
 [dependencies]
-#gorust = "0.1.5"
-gorust = { path =  "../gorust" }
+gorust = "0.1.5"
+#gorust = { path =  "../gorust" }
 byteorder = "1.4"
 parking_lot = "0.12"
 lazy_static = "1.4"
