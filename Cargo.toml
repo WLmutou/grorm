@@ -1,0 +1,48 @@
+[package]
+name = "grorm"
+version = "0.1.0"
+edition = "2021"
+description = "Goroutine-native ORM for Rust with multi-database support"
+authors = ["lijun <1489573464@qq.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/WLmutou/grorm"
+keywords = ["orm", "database", "postgresql", "mysql", "sqlite", "gorust"]
+categories = ["database", "asynchronous"]
+
+[dependencies]
+gorust = "0.1.5"
+byteorder = "1.4"
+parking_lot = "0.12"
+lazy_static = "1.4"
+log = "0.4"
+hex = "0.4"
+grorm-macros = { path = "grorm-macros" }
+
+[dev-dependencies]
+env_logger = "0.10"
+
+[features]
+default = ["postgres"]
+postgres = []
+mysql = []
+sqlite = []
+full = ["postgres", "mysql", "sqlite"]
+
+[lib]
+name = "grorm"
+path = "src/lib.rs"
+
+[[example]]
+name = "postgres_demo"
+path = "examples/postgres_demo.rs"
+
+[[example]]
+name = "mysql_demo"
+path = "examples/mysql_demo.rs"
+
+[[example]]
+name = "sqlite_demo"
+path = "examples/sqlite_demo.rs"
+
+[workspace]
+members = ["grorm-macros"]
