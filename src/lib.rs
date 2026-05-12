@@ -14,3 +14,8 @@ pub use error::{Error, Result};
 pub use pool::ConnectionPool;
 pub use orm::{Model, QueryBuilder, Transaction};
 pub use types::{FromSql, ToSql, Value};
+
+
+// 导出 runtime
+pub use grorm_macros::Model;
+pub use grorm_macros::Table;

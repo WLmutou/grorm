@@ -19,8 +19,8 @@ impl PostgresDriver {
         }
     }
     
-    fn get_conn(&mut self) -> &mut PgConnection {
-        self.conn.as_mut().expect("Not connected")
+    fn get_conn(&mut self) -> Result<&mut PgConnection, Error> {
+        self.conn.as_mut().ok_or_else(|| Error::Connection("not connected".into()))
     }
     
     #[allow(dead_code)]
@@ -62,7 +62,7 @@ impl DatabaseDriver for PostgresDriver {
             final_sql = final_sql.replacen("?", val, 1);
         }
         
-        match self.get_conn().execute_query(&final_sql)? {
+        match self.get_conn()?.execute_query(&final_sql)? {
             PgResult::Rows(row_data, columns_info) => {
                 let mut query_result = QueryResult {
                     rows: Vec::new(),
@@ -108,7 +108,7 @@ impl DatabaseDriver for PostgresDriver {
     }
     
     fn prepare(&mut self, name: &str, sql: &str) -> Result<(), Error> {
-        self.get_conn().prepare(name, sql)?;
+        self.get_conn()?.prepare(name, sql)?;
         self.prepared_statements.insert(name.to_string(), sql.to_string());
         Ok(())
     }
@@ -120,7 +120,7 @@ impl DatabaseDriver for PostgresDriver {
         
         let param_refs: Vec<&str> = param_strs.iter().map(|s| s.as_str()).collect();
         
-        match self.get_conn().execute_prepared(name, &param_refs)? {
+        match self.get_conn()?.execute_prepared(name, &param_refs)? {
             PgResult::Rows(row_data, columns_info) => {
                 let mut rows = Vec::new();
                 for row_values in row_data {
@@ -149,17 +149,17 @@ impl DatabaseDriver for PostgresDriver {
     }
     
     fn begin(&mut self) -> Result<(), Error> {
-        self.get_conn().execute_query("BEGIN")?;
+        self.get_conn()?.execute_query("BEGIN")?;
         Ok(())
     }
     
     fn commit(&mut self) -> Result<(), Error> {
-        self.get_conn().execute_query("COMMIT")?;
+        self.get_conn()?.execute_query("COMMIT")?;
         Ok(())
     }
     
     fn rollback(&mut self) -> Result<(), Error> {
-        self.get_conn().execute_query("ROLLBACK")?;
+        self.get_conn()?.execute_query("ROLLBACK")?;
         Ok(())
     }
     
