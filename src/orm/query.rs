@@ -58,6 +58,10 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.joins.clear();
     }
 
+    pub fn table_name(&self) -> &str {
+        M::table_name()
+    }
+
     pub fn where_eq(&mut self, column: &str, value: Value) -> &mut Self {
         self.conditions.push((format!("{} = ?", column), vec![value_to_param(&value)]));
         self
@@ -248,6 +252,38 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         );
 
         self.driver.execute(&sql, &[])?;
+
+        for col in schema {
+            if col.is_index {
+                let idx_name = format!("idx_{}_{}", table, col.name);
+                let idx_sql = format!(
+                    "CREATE INDEX IF NOT EXISTS {} ON {} ({})",
+                    idx_name, table, col.name
+                );
+                self.driver.execute(&idx_sql, &[])?;
+            }
+        }
+
+        let mut unique_groups: std::collections::BTreeMap<&str, Vec<&str>> = std::collections::BTreeMap::new();
+        for col in schema {
+            if let Some(idx_name) = col.unique_index_name {
+                unique_groups.entry(idx_name).or_default().push(col.name);
+            }
+        }
+
+        for (idx_name, cols) in &unique_groups {
+            let uniq_name = if idx_name.is_empty() {
+                format!("uq_{}_{}", table, cols.join("_"))
+            } else {
+                idx_name.to_string()
+            };
+            let uniq_sql = format!(
+                "CREATE UNIQUE INDEX IF NOT EXISTS {} ON {} ({})",
+                uniq_name, table, cols.join(", ")
+            );
+            self.driver.execute(&uniq_sql, &[])?;
+        }
+
         Ok(())
     }
 

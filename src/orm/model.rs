@@ -6,6 +6,9 @@ pub struct ColumnInfo {
     pub rust_type: &'static str,
     pub is_primary_key: bool,
     pub is_auto_increment: bool,
+    pub is_index: bool,
+    pub is_unique: bool,
+    pub unique_index_name: Option<&'static str>,
 }
 
 pub trait Model: Sized {

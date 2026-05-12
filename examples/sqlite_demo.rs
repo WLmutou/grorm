@@ -5,9 +5,15 @@ use gorust::runtime;
 #[derive(Debug, DeriveModel)]
 #[table = "users"]
 struct User {
-    id: i64,
+    id: i64,                          // 自动主键
+    #[index]                          // 单列索引
     name: String,
+    #[unique]                         // 单列唯一约束
     email: String,
+    #[unique_index = "idx_name_age"]  // 联合唯一索引（同名的列组成一组）
+    first_name: String,
+    #[unique_index = "idx_name_age"]
+    last_name: String,
     age: i32,
 }
 
@@ -27,9 +33,9 @@ fn main() -> std::result::Result<(), Error> {
     // seed data
     {
         let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
-        qb.insert(&User { id: 0, name: "Alice".into(), email: "alice@x.com".into(), age: 30 })?;
-        qb.insert(&User { id: 0, name: "Bob".into(), email: "bob@x.com".into(), age: 25 })?;
-        qb.insert(&User { id: 0, name: "Charlie".into(), email: "charlie@x.com".into(), age: 35 })?;
+        qb.insert(&User { id: 0, name: "Alice".into(), email: "alice@x.com".into(), first_name: "Alice".into(), last_name: "Doe".into(), age: 30 })?;
+        qb.insert(&User { id: 0, name: "Bob".into(), email: "bob@x.com".into(), first_name: "Bob".into(), last_name: "Doe".into(), age: 25 })?;
+        qb.insert(&User { id: 0, name: "Charlie".into(), email: "charlie@x.com".into(), first_name: "Charlie".into(), last_name: "Doe".into(), age: 35 })?;
     }
 
     // where_in
@@ -47,7 +53,7 @@ fn main() -> std::result::Result<(), Error> {
         let mut tx = Transaction::<User>::begin(conn.driver_mut())?;
         tx.where_eq("name", Value::from("Alice"))
             .update_one("age", Value::from(31))?;
-        tx.insert(&User { id: 0, name: "Dave".into(), email: "dave@x.com".into(), age: 40 })?;
+        tx.insert(&User { id: 0, name: "Dave".into(), email: "dave@x.com".into(), first_name: "Dave".into(), last_name: "Doe".into(), age: 40 })?;
         tx.commit()?;
         println!("Transaction committed");
     }
