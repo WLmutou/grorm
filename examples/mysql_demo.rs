@@ -1,8 +1,8 @@
-use grorm::{ConnectionConfig, MysqlDriverFactory, ConnectionPool, QueryBuilder, Error};
-use grorm_macros::Model;
+use grorm::{ConnectionConfig, ConnectionPool, DeriveModel, Error, MysqlDriverFactory, QueryBuilder};
+
 use gorust::runtime;
 
-#[derive(Debug, Model)]
+#[derive(Debug, DeriveModel)]
 #[table = "users"]
 struct User {
     id: i64,
@@ -19,12 +19,10 @@ fn main() -> std::result::Result<(), Error> {
 
     let mut conn = pool.get()?;
 
-    conn.driver_mut().execute("CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        email VARCHAR(200) NOT NULL,
-        age INT DEFAULT 0
-    )", &[])?;
+    {
+        let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
+        qb.create_table()?;
+    }
 
     let user = User {
         id: 0,

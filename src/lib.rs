@@ -12,10 +12,10 @@ pub use driver::{MysqlDriver, MysqlDriverFactory};
 pub use driver::{SqliteDriver, SqliteDriverFactory};
 pub use error::{Error, Result};
 pub use pool::ConnectionPool;
-pub use orm::{Model, QueryBuilder, Transaction};
+pub use orm::{ColumnInfo, Model, QueryBuilder, Transaction};
 pub use types::{FromSql, ToSql, Value};
 
 
-// 导出 runtime
-pub use grorm_macros::Model;
-pub use grorm_macros::Table;
+// 明确区分 trait 和 derive macro
+pub use grorm_macros::Model as DeriveModel;
+pub use grorm_macros::Table as DeriveTable;

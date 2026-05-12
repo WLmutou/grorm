@@ -1,8 +1,8 @@
 use grorm::{ConnectionConfig, ConnectionPool, PostgresDriverFactory, QueryBuilder, Transaction, Value, Error};
-use grorm::Model;
+use grorm::DeriveModel;
 use gorust::{go, runtime, channel};
 
-#[derive(Debug, Model)]
+#[derive(Debug, DeriveModel)]
 #[table = "users"]
 struct User {
     id: i64,
@@ -19,12 +19,10 @@ fn run() -> std::result::Result<(), Error> {
     let mut conn = pool.get()?;
     println!("==== Connection created");
 
-    conn.driver_mut().execute("CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        email VARCHAR(200) NOT NULL,
-        age INTEGER DEFAULT 0
-    )", &[])?;
+    {
+        let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
+        qb.create_table()?;
+    }
 
     // seed data
     {

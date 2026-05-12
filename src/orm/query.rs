@@ -1,7 +1,31 @@
-use crate::driver::{DatabaseDriver, Parameter, Row};
+use crate::driver::{DatabaseDriver, DatabaseType, Parameter, Row};
 use crate::orm::model::Model;
 use crate::types::Value;
 use crate::error::Error;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinType {
+    Left,
+    Inner,
+    Right,
+}
+
+impl JoinType {
+    fn as_sql(&self) -> &'static str {
+        match self {
+            JoinType::Left => "LEFT JOIN",
+            JoinType::Inner => "INNER JOIN",
+            JoinType::Right => "RIGHT JOIN",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct JoinClause {
+    pub join_type: JoinType,
+    pub table: String,
+    pub on_clause: String,
+}
 
 pub struct QueryBuilder<'a, M: Model> {
     driver: &'a mut dyn DatabaseDriver,
@@ -10,6 +34,7 @@ pub struct QueryBuilder<'a, M: Model> {
     limit_val: Option<usize>,
     offset_val: Option<usize>,
     order_by: Vec<(String, bool)>,
+    joins: Vec<JoinClause>,
 }
 
 impl<'a, M: Model> QueryBuilder<'a, M> {
@@ -21,6 +46,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
             limit_val: None,
             offset_val: None,
             order_by: Vec::new(),
+            joins: Vec::new(),
         }
     }
 
@@ -29,6 +55,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.limit_val = None;
         self.offset_val = None;
         self.order_by.clear();
+        self.joins.clear();
     }
 
     pub fn where_eq(&mut self, column: &str, value: Value) -> &mut Self {
@@ -74,6 +101,33 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self
     }
 
+    pub fn left_join(&mut self, table: &str, on_clause: &str) -> &mut Self {
+        self.joins.push(JoinClause {
+            join_type: JoinType::Left,
+            table: table.to_string(),
+            on_clause: on_clause.to_string(),
+        });
+        self
+    }
+
+    pub fn inner_join(&mut self, table: &str, on_clause: &str) -> &mut Self {
+        self.joins.push(JoinClause {
+            join_type: JoinType::Inner,
+            table: table.to_string(),
+            on_clause: on_clause.to_string(),
+        });
+        self
+    }
+
+    pub fn right_join(&mut self, table: &str, on_clause: &str) -> &mut Self {
+        self.joins.push(JoinClause {
+            join_type: JoinType::Right,
+            table: table.to_string(),
+            on_clause: on_clause.to_string(),
+        });
+        self
+    }
+
     pub fn find(&mut self) -> Result<Vec<M>, Error> {
         let (sql, params) = self.build_select_sql();
         let result = self.driver.query(&sql, &params)?;
@@ -109,6 +163,16 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
 
     fn build_select_sql(&self) -> (String, Vec<Parameter>) {
         let mut sql = format!("SELECT * FROM {}", M::table_name());
+
+        for join in &self.joins {
+            sql.push_str(&format!(
+                " {} {} ON {}",
+                join.join_type.as_sql(),
+                join.table,
+                join.on_clause
+            ));
+        }
+
         let params = self.flatten_conditions(&mut sql);
 
         if !self.order_by.is_empty() {
@@ -143,9 +207,48 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
     }
 
     pub fn find_all(&mut self) -> Result<Vec<M>, Error> {
-        let sql = format!("SELECT * FROM {}", M::table_name());
-        let result = self.driver.query(&sql, &[])?;
+        let (sql, params) = self.build_select_sql();
+        let result = self.driver.query(&sql, &params)?;
+        self.reset_chain();
         self.parse_rows(&result.rows)
+    }
+
+    pub fn create_table(&mut self) -> Result<(), Error> {
+        let schema = M::table_schema();
+        let db_type = self.driver.db_type();
+        let table = M::table_name();
+
+        let mut col_defs: Vec<String> = Vec::new();
+        let mut pk_cols: Vec<&str> = Vec::new();
+
+        for col in schema {
+            let sql_type = rust_to_sql_type(col.rust_type, db_type, col.is_auto_increment);
+            let mut def = format!("{} {}", col.name, sql_type);
+
+            if col.is_primary_key {
+                pk_cols.push(col.name);
+            }
+
+            if !col.is_primary_key {
+                def.push_str(" NOT NULL");
+            }
+
+            col_defs.push(def);
+        }
+
+        if !pk_cols.is_empty() {
+            let pk_names: Vec<String> = pk_cols.iter().map(|c| c.to_string()).collect();
+            col_defs.push(format!("PRIMARY KEY ({})", pk_names.join(", ")));
+        }
+
+        let sql = format!(
+            "CREATE TABLE IF NOT EXISTS {} (\n    {}\n)",
+            table,
+            col_defs.join(",\n    ")
+        );
+
+        self.driver.execute(&sql, &[])?;
+        Ok(())
     }
 
     pub fn find_by_id(&mut self, id: i64) -> Result<Option<M>, Error> {
@@ -364,5 +467,341 @@ fn is_value_default(value: &Value) -> bool {
         Value::Bytes(v) => v.is_empty(),
         Value::Array(v) => v.is_empty(),
         Value::Map(v) => v.is_empty(),
+    }
+}
+
+
+
+
+// fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool) -> &'static str {
+//     match rust_type {
+//         "bool" => "BOOLEAN",
+//         "i8" | "i16" => "SMALLINT",
+//         "i32" => {
+//             if auto_increment {
+//                 match db_type {
+//                     DatabaseType::Postgresql => "SERIAL",
+//                     _ => "INTEGER",
+//                 }
+//             } else {
+//                 "INTEGER"
+//             }
+//         }
+//         "i64" | "isize" => {
+//             if auto_increment {
+//                 match db_type {
+//                     DatabaseType::Postgresql => "BIGSERIAL",
+//                     _ => "BIGINT",
+//                 }
+//             } else {
+//                 "BIGINT"
+//             }
+//         }
+//         "u8" | "u16" => "SMALLINT",
+//         "u32" => "INTEGER",
+//         "u64" | "usize" => "BIGINT",
+//         "f32" => "REAL",
+//         "f64" => match db_type {
+//             DatabaseType::Postgresql => "DOUBLE PRECISION",
+//             _ => "DOUBLE",
+//         },
+//         "String" | "str" => match db_type {
+//             DatabaseType::Postgresql => "VARCHAR(255)",
+//             DatabaseType::Mysql => "VARCHAR(255)",
+//             DatabaseType::Sqlite => "TEXT",
+//         },
+//         _ => "TEXT",
+//     }
+// }
+
+
+fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool) -> &'static str {
+    let normalized = rust_type
+        .trim()
+        .split('<')
+        .next()
+        .unwrap_or(rust_type)
+        .to_lowercase();
+    
+    match normalized.as_str() {
+        // ========== 布尔类型 ==========
+        "bool" => "BOOLEAN",
+        
+        // ========== 整数类型 ==========
+        "i8" => match db_type {
+            DatabaseType::Postgresql => "SMALLINT",
+            DatabaseType::Mysql => "TINYINT",
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        "i16" => match db_type {
+            DatabaseType::Postgresql => "SMALLINT",
+            DatabaseType::Mysql => "SMALLINT",
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        "i32" => match db_type {
+            DatabaseType::Postgresql =>  {
+                if auto_increment {
+                     "SERIAL"
+                } else {
+                    "INTEGER"
+                }
+            },
+            DatabaseType::Mysql => {
+                if auto_increment {
+                    "BIGINT"
+                } else {
+                    "INT"
+                }
+            },
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        "i64" => match db_type {
+            DatabaseType::Postgresql => {
+                if auto_increment {
+                    "BIGSERIAL"
+                } else {
+                    "BIGINT"
+                }
+            },
+            DatabaseType::Mysql => "BIGINT",
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        "i128" => match db_type {
+            DatabaseType::Postgresql => "NUMERIC(39,0)",
+            DatabaseType::Mysql => "DECIMAL(39,0)",
+            DatabaseType::Sqlite => "TEXT", // SQLite 不支持大整数
+        },
+        "isize" => match db_type {
+            DatabaseType::Postgresql => "BIGINT",
+            DatabaseType::Mysql => "BIGINT",
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        
+        // 无符号整数
+        "u8" => match db_type {
+            DatabaseType::Postgresql => "SMALLINT",
+            DatabaseType::Mysql => "TINYINT UNSIGNED",
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        "u16" => match db_type {
+            DatabaseType::Postgresql => "INTEGER",
+            DatabaseType::Mysql => "SMALLINT UNSIGNED",
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        "u32" => match db_type {
+            DatabaseType::Postgresql => "BIGINT",
+            DatabaseType::Mysql => "INT UNSIGNED",
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        "u64" => match db_type {
+            DatabaseType::Postgresql => "NUMERIC(20,0)",
+            DatabaseType::Mysql => "BIGINT UNSIGNED",
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        "u128" => match db_type {
+            DatabaseType::Postgresql => "NUMERIC(39,0)",
+            DatabaseType::Mysql => "DECIMAL(39,0) UNSIGNED",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "usize" => match db_type {
+            DatabaseType::Postgresql => "BIGINT",
+            DatabaseType::Mysql => "BIGINT UNSIGNED",
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        
+        // ========== 浮点类型 ==========
+        "f32" => match db_type {
+            DatabaseType::Postgresql => "REAL",
+            DatabaseType::Mysql => "FLOAT",
+            DatabaseType::Sqlite => "REAL",
+        },
+        "f64" => match db_type {
+            DatabaseType::Postgresql => "DOUBLE PRECISION",
+            DatabaseType::Mysql => "DOUBLE",
+            DatabaseType::Sqlite => "REAL",
+        },
+        
+        // ========== 字符串类型 ==========
+        "string" => match db_type {
+            DatabaseType::Postgresql => "VARCHAR(255)",
+            DatabaseType::Mysql => "VARCHAR(255)",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "char" => match db_type {
+            DatabaseType::Postgresql => "CHAR(1)",
+            DatabaseType::Mysql => "CHAR(1)",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // ========== 文本类型 ==========
+        "text" => match db_type {
+            DatabaseType::Postgresql => "TEXT",
+            DatabaseType::Mysql => "TEXT",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "str" => match db_type {
+            DatabaseType::Postgresql => "TEXT",
+            DatabaseType::Mysql => "TEXT",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // ========== JSON 类型 ==========
+        "json" | "jsonb" | "serde_json::value" | "value" | "serde_json::map" | "serde_json::number" => match db_type {
+            DatabaseType::Postgresql => "JSONB",
+            DatabaseType::Mysql => "JSON",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // ========== 日期时间类型 ==========
+        // NaiveDate (只有日期)
+        "chrono::naivedate" | "naivedate" | "date" => match db_type {
+            DatabaseType::Postgresql => "DATE",
+            DatabaseType::Mysql => "DATE",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // NaiveTime (只有时间)
+        "chrono::naivetime" | "naivetime" | "time" => match db_type {
+            DatabaseType::Postgresql => "TIME",
+            DatabaseType::Mysql => "TIME",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // NaiveDateTime (无时区)
+        "chrono::naivedatetime" | "naivedatetime" => match db_type {
+            DatabaseType::Postgresql => "TIMESTAMP",
+            DatabaseType::Mysql => "DATETIME",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // DateTime (有时区)
+        "chrono::datetime" | "datetime" => match db_type {
+            DatabaseType::Postgresql => "TIMESTAMPTZ",
+            DatabaseType::Mysql => "TIMESTAMP",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "chrono::datetime<chrono::fixedoffset>" => match db_type {
+            DatabaseType::Postgresql => "TIMESTAMPTZ",
+            DatabaseType::Mysql => "TIMESTAMP",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "chrono::datetime<chrono::utc>" => match db_type {
+            DatabaseType::Postgresql => "TIMESTAMPTZ",
+            DatabaseType::Mysql => "TIMESTAMP",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "chrono::datetime<chrono::local>" => match db_type {
+            DatabaseType::Postgresql => "TIMESTAMPTZ",
+            DatabaseType::Mysql => "TIMESTAMP",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // Duration
+        "chrono::duration" | "duration" => match db_type {
+            DatabaseType::Postgresql => "INTERVAL",
+            DatabaseType::Mysql => "BIGINT", // MySQL 中没有原生 interval，用秒数
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        
+        // ========== UUID ==========
+        "uuid" | "uuid::uuid" => match db_type {
+            DatabaseType::Postgresql => "UUID",
+            DatabaseType::Mysql => "CHAR(36)",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // ========== 二进制数据 ==========
+        "vec<u8>" | "bytes" | "bytearray" | "&[u8]" => match db_type {
+            DatabaseType::Postgresql => "BYTEA",
+            DatabaseType::Mysql => "BLOB",
+            DatabaseType::Sqlite => "BLOB",
+        },
+        "byte" => match db_type {
+            DatabaseType::Postgresql => "SMALLINT",
+            DatabaseType::Mysql => "TINYINT",
+            DatabaseType::Sqlite => "INTEGER",
+        },
+        
+        // ========== 数组类型 ==========
+        vec if vec.starts_with("vec<") || vec.starts_with("array<") => {
+            // let inner_type = &rust_type[rust_type.find('<').unwrap() + 1..rust_type.rfind('>').unwrap()];
+            match db_type {
+                DatabaseType::Postgresql => "text[]",
+                DatabaseType::Mysql => "JSON", // MySQL 存储数组用 JSON
+                DatabaseType::Sqlite => "TEXT",
+            }
+        }
+        
+        // ========== 集合类型 ==========
+        "hashmap" | "hashmap<" => match db_type {
+            DatabaseType::Postgresql => "JSONB",
+            DatabaseType::Mysql => "JSON",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "hashset" | "hashset<" => match db_type {
+            DatabaseType::Postgresql => "JSONB",
+            DatabaseType::Mysql => "JSON",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "btreemap" | "btreemap<" => match db_type {
+            DatabaseType::Postgresql => "JSONB",
+            DatabaseType::Mysql => "JSON",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "btreeset" | "btreeset<" => match db_type {
+            DatabaseType::Postgresql => "JSONB",
+            DatabaseType::Mysql => "JSON",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // ========== Option 类型 ==========
+        "option" | "option<" => {
+            let inner_type = &rust_type[rust_type.find('<').unwrap() + 1..rust_type.rfind('>').unwrap()];
+            rust_to_sql_type(inner_type, db_type, auto_increment)
+        }
+        
+        // ========== 网络类型 ==========
+        "std::net::ipaddr" | "ipaddr" | "std::net::ipv4addr" | "ipv4addr" => match db_type {
+            DatabaseType::Postgresql => "INET",
+            DatabaseType::Mysql => "VARCHAR(45)",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "std::net::ipv6addr" | "ipv6addr" => match db_type {
+            DatabaseType::Postgresql => "INET",
+            DatabaseType::Mysql => "VARCHAR(45)",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "std::net::socketaddr" | "socketaddr" => match db_type {
+            DatabaseType::Postgresql => "INET",
+            DatabaseType::Mysql => "VARCHAR(45)",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // ========== 其他常见类型 ==========
+        "decimal" | "rust_decimal::decimal" => match db_type {
+            DatabaseType::Postgresql => "DECIMAL(10,2)",
+            DatabaseType::Mysql => "DECIMAL(10,2)",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        "bigdecimal" | "bigdecimal::bigdecimal" => match db_type {
+            DatabaseType::Postgresql => "DECIMAL(20,6)",
+            DatabaseType::Mysql => "DECIMAL(20,6)",
+            DatabaseType::Sqlite => "TEXT",
+        },
+        
+        // 枚举类型
+        e if !normalized.contains("::") && 
+             normalized.chars().next().unwrap_or('a').is_uppercase() &&
+             !matches!(normalized.as_str(), "string" | "text" | "json" | "uuid") =>
+        {
+            match db_type {
+                DatabaseType::Postgresql => "VARCHAR(50)",
+                DatabaseType::Mysql => "VARCHAR(50)",
+                DatabaseType::Sqlite => "TEXT",
+            }
+        }
+        
+        // ========== 默认 ==========
+        _ => "TEXT",
     }
 }

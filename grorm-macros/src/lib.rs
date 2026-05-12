@@ -46,6 +46,23 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
         }
     });
 
+    let schema_entries = fields.iter().map(|f| {
+        let fname = f.ident.as_ref().unwrap();
+        let fname_str = fname.to_string();
+        let ty = &f.ty;
+        let ty_str = quote! { #ty }.to_string();
+        let is_pk = fname_str == primary_key;
+        let is_auto = is_pk && is_integer_type(&ty_str);
+        quote! {
+            ::grorm::ColumnInfo {
+                name: #fname_str,
+                rust_type: #ty_str,
+                is_primary_key: #is_pk,
+                is_auto_increment: #is_auto,
+            }
+        }
+    });
+
     let expanded = quote! {
         impl ::grorm::Model for #name {
             fn table_name() -> &'static str {
@@ -58,6 +75,10 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
 
             fn columns() -> &'static [&'static str] {
                 &[#(#field_names_ref),*]
+            }
+
+            fn table_schema() -> &'static [::grorm::ColumnInfo] {
+                &[#(#schema_entries),*]
             }
 
             fn from_row(row: &[::grorm::Value]) -> Result<Self, String> {
@@ -73,6 +94,12 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+fn is_integer_type(ty: &str) -> bool {
+    ty == "i8" || ty == "i16" || ty == "i32" || ty == "i64"
+        || ty == "u8" || ty == "u16" || ty == "u32" || ty == "u64"
+        || ty == "isize" || ty == "usize"
 }
 
 #[proc_macro_derive(Table, attributes(table_name))]

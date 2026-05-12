@@ -1,8 +1,8 @@
 use grorm::{ConnectionConfig, SqliteDriverFactory, ConnectionPool, QueryBuilder, Transaction, Value, Error};
-use grorm::Model;
+use grorm::DeriveModel;
 use gorust::runtime;
 
-#[derive(Debug, Model)]
+#[derive(Debug, DeriveModel)]
 #[table = "users"]
 struct User {
     id: i64,
@@ -19,12 +19,10 @@ fn main() -> std::result::Result<(), Error> {
 
     let mut conn = pool.get()?;
 
-    conn.driver_mut().execute("CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL,
-        age INTEGER DEFAULT 0
-    )", &[])?;
+    {
+        let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
+        qb.create_table()?;
+    }
 
     // seed data
     {
