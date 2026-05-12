@@ -59,7 +59,7 @@ fn run() -> std::result::Result<(), Error> {
     }
 
     {
-        // let user = User { id: 0, name: "Eve".into(), email: "eve@x.com".into(), age: 32 };
+        let user = User { id: 0, name: "Eve".into(), email: "eve@x.com".into(), first_name: "Eve".into(), last_name: "Doe".into(), age: 32 };
         let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
         let all = qb.find_all()?;
         println!("All users: {:?}", all);
