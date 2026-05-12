@@ -1,18 +1,42 @@
 use std::fmt;
 
+/// Convenience type alias for `Result<T, Error>`.
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Unified error type for all grorm operations.
+///
+/// Covers connection, query, protocol, model, pool, and transaction errors.
+///
+/// # Example
+///
+/// ```rust
+/// use grorm::Error;
+///
+/// fn example() -> Result<(), Error> {
+///     Err(Error::NotFound("user not found".into()))
+/// }
+/// ```
 #[derive(Debug)]
 pub enum Error {
+    /// Database connection errors (auth, network, etc.)
     Connection(String),
+    /// SQL query errors (syntax, constraint violations, etc.)
     Query(String),
+    /// SQL execution errors (write operations)
     Execute(String),
+    /// Low-level protocol errors (wire format, parsing)
     Protocol(String),
+    /// Model serialization/deserialization errors
     Model(String),
+    /// Connection pool errors (exhausted, closed)
     Pool(String),
+    /// Configuration errors (invalid DSN, etc.)
     Config(String),
+    /// Wrapped I/O errors
     Io(std::io::Error),
+    /// Entity not found (for operations expecting a result)
     NotFound(String),
+    /// Transaction errors (begin, commit, rollback)
     Transaction(String),
 }
 

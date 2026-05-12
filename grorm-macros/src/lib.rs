@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput, Data, Fields, Meta};
 
-#[proc_macro_derive(Model, attributes(table, column, primary_key))]
+#[proc_macro_derive(Model, attributes(table, column, primary_key, index, unique, unique_index))]
 pub fn derive_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
@@ -46,6 +46,38 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
         }
     });
 
+    let schema_entries = fields.iter().map(|f| {
+        let fname = f.ident.as_ref().unwrap();
+        let fname_str = fname.to_string();
+        let ty = &f.ty;
+        let ty_str = quote! { #ty }.to_string();
+        let is_pk = fname_str == primary_key;
+        let is_auto = is_pk && is_integer_type(&ty_str);
+        let is_index = has_field_attr(&f.attrs, "index");
+        let is_unique = has_field_attr(&f.attrs, "unique");
+        let unique_index_name: Option<String> = get_attr(&f.attrs, "unique_index");
+
+        let unique_idx_expr = if let Some(ref name) = unique_index_name {
+            quote! { Some(#name) }
+        } else if is_unique {
+            quote! { Some("") }
+        } else {
+            quote! { None }
+        };
+
+        quote! {
+            ::grorm::ColumnInfo {
+                name: #fname_str,
+                rust_type: #ty_str,
+                is_primary_key: #is_pk,
+                is_auto_increment: #is_auto,
+                is_index: #is_index,
+                is_unique: #is_unique,
+                unique_index_name: #unique_idx_expr,
+            }
+        }
+    });
+
     let expanded = quote! {
         impl ::grorm::Model for #name {
             fn table_name() -> &'static str {
@@ -58,6 +90,10 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
 
             fn columns() -> &'static [&'static str] {
                 &[#(#field_names_ref),*]
+            }
+
+            fn table_schema() -> &'static [::grorm::ColumnInfo] {
+                &[#(#schema_entries),*]
             }
 
             fn from_row(row: &[::grorm::Value]) -> Result<Self, String> {
@@ -73,6 +109,16 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+fn is_integer_type(ty: &str) -> bool {
+    ty == "i8" || ty == "i16" || ty == "i32" || ty == "i64"
+        || ty == "u8" || ty == "u16" || ty == "u32" || ty == "u64"
+        || ty == "isize" || ty == "usize"
+}
+
+fn has_field_attr(attrs: &[syn::Attribute], name: &str) -> bool {
+    attrs.iter().any(|attr| attr.path().is_ident(name))
 }
 
 #[proc_macro_derive(Table, attributes(table_name))]

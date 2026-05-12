@@ -16,8 +16,8 @@ impl SqliteDriver {
         }
     }
 
-    fn get_conn(&mut self) -> &mut SqliteConnection {
-        self.conn.as_mut().expect("Not connected")
+    fn get_conn(&mut self) -> Result<&mut SqliteConnection, Error> {
+        self.conn.as_mut().ok_or_else(|| Error::Connection("not connected".into()))
     }
 
     fn extract_table_name(&self, sql: &str) -> String {
@@ -71,7 +71,7 @@ impl DatabaseDriver for SqliteDriver {
     fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Error> {
         let final_sql = Self::substitute_params(sql, params);
         let sql_upper = sql.trim().to_uppercase();
-        match self.get_conn().execute_query(&final_sql)? {
+        match self.get_conn()?.execute_query(&final_sql)? {
             SqliteResult::Rows(row_data, columns_info) => {
                 let mut rows = Vec::new();
                 for row_values in row_data {
@@ -94,7 +94,7 @@ impl DatabaseDriver for SqliteDriver {
             SqliteResult::Done(affected) => {
                 if sql_upper.starts_with("INSERT") {
                     let table_name = self.extract_table_name(sql);
-                    self.last_row_id = self.get_conn().count_rows(&table_name)? as i64;
+                    self.last_row_id = self.get_conn()?.count_rows(&table_name)? as i64;
                 }
                 Ok(QueryResult {
                     rows: Vec::new(),
@@ -123,17 +123,17 @@ impl DatabaseDriver for SqliteDriver {
     }
 
     fn begin(&mut self) -> Result<(), Error> {
-        self.get_conn().execute_query("BEGIN")?;
+        self.get_conn()?.execute_query("BEGIN")?;
         Ok(())
     }
 
     fn commit(&mut self) -> Result<(), Error> {
-        self.get_conn().execute_query("COMMIT")?;
+        self.get_conn()?.execute_query("COMMIT")?;
         Ok(())
     }
 
     fn rollback(&mut self) -> Result<(), Error> {
-        self.get_conn().execute_query("ROLLBACK")?;
+        self.get_conn()?.execute_query("ROLLBACK")?;
         Ok(())
     }
 

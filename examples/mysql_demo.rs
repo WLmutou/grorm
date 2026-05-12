@@ -1,8 +1,8 @@
-use grorm::{ConnectionConfig, MysqlDriverFactory, ConnectionPool, QueryBuilder};
-use grorm_macros::Model;
+use grorm::{ConnectionConfig, ConnectionPool, DeriveModel, Error, MysqlDriverFactory, QueryBuilder};
+
 use gorust::runtime;
 
-#[derive(Debug, Model)]
+#[derive(Debug, DeriveModel)]
 #[table = "users"]
 struct User {
     id: i64,
@@ -12,19 +12,17 @@ struct User {
 }
 
 #[runtime]
-fn main() {
+fn main() -> std::result::Result<(), Error> {
     let config = ConnectionConfig::new("127.0.0.1", 3306, "root", "password", "testdb");
 
     let pool = ConnectionPool::new(MysqlDriverFactory, config, 5);
 
-    let mut conn = pool.get().expect("Failed to get connection");
+    let mut conn = pool.get()?;
 
-    conn.driver_mut().execute("CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        email VARCHAR(200) NOT NULL,
-        age INT DEFAULT 0
-    )", &[]).expect("Failed to create table");
+    {
+        let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
+        qb.create_table()?;
+    }
 
     let user = User {
         id: 0,
@@ -34,11 +32,13 @@ fn main() {
     };
 
     let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
-    let inserted_id = qb.insert(&user).expect("Failed to insert");
+    let inserted_id = qb.insert(&user)?;
     println!("Inserted user with id: {:?}", inserted_id);
 
-    let users = qb.find_all().expect("Failed to query");
+    let users = qb.find_all()?;
     for u in &users {
         println!("User: {:?}", u);
     }
+
+    Ok(())
 }
