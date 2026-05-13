@@ -1,4 +1,6 @@
 use std::fmt;
+use serde::{Serialize, Serializer};
+use serde::ser::SerializeStruct; 
 
 /// Convenience type alias for `Result<T, Error>`.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -56,6 +58,35 @@ impl fmt::Display for Error {
         }
     }
 }
+
+impl Serialize for Error {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        
+        // 将 Io 错误转换为字符串
+        let (variant, message) = match self {
+            Error::Connection(msg) => ("Connection", msg),
+            Error::Query(msg) => ("Query", msg),
+            Error::Execute(msg) => ("Execute", msg),
+            Error::Protocol(msg) => ("Protocol", msg),
+            Error::Model(msg) => ("Model", msg),
+            Error::Pool(msg) => ("Pool", msg),
+            Error::Config(msg) => ("Config", msg),
+            Error::Io(err) => ("Io", &err.to_string()),
+            Error::NotFound(msg) => ("NotFound", msg),
+            Error::Transaction(msg) => ("Transaction", msg),
+        };
+        
+        let mut state = serializer.serialize_struct("Error", 2)?;
+        state.serialize_field("type", variant)?;
+        state.serialize_field("message", message)?;
+        state.end()
+    }
+}
+
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {

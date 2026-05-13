@@ -664,11 +664,13 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "SMALLINT",
             DatabaseType::Mysql => "TINYINT",
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "i16" => match db_type {
             DatabaseType::Postgresql => "SMALLINT",
             DatabaseType::Mysql => "SMALLINT",
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "i32" => match db_type {
             DatabaseType::Postgresql =>  {
@@ -686,6 +688,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
                 }
             },
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "i64" => match db_type {
             DatabaseType::Postgresql => {
@@ -697,16 +700,19 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             },
             DatabaseType::Mysql => "BIGINT",
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "i128" => match db_type {
             DatabaseType::Postgresql => "NUMERIC(39,0)",
             DatabaseType::Mysql => "DECIMAL(39,0)",
             DatabaseType::Sqlite => "TEXT", // SQLite 不支持大整数
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "isize" => match db_type {
             DatabaseType::Postgresql => "BIGINT",
             DatabaseType::Mysql => "BIGINT",
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // 无符号整数
@@ -714,31 +720,37 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "SMALLINT",
             DatabaseType::Mysql => "TINYINT UNSIGNED",
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "u16" => match db_type {
             DatabaseType::Postgresql => "INTEGER",
             DatabaseType::Mysql => "SMALLINT UNSIGNED",
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "u32" => match db_type {
             DatabaseType::Postgresql => "BIGINT",
             DatabaseType::Mysql => "INT UNSIGNED",
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "u64" => match db_type {
             DatabaseType::Postgresql => "NUMERIC(20,0)",
             DatabaseType::Mysql => "BIGINT UNSIGNED",
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "u128" => match db_type {
             DatabaseType::Postgresql => "NUMERIC(39,0)",
             DatabaseType::Mysql => "DECIMAL(39,0) UNSIGNED",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "usize" => match db_type {
             DatabaseType::Postgresql => "BIGINT",
             DatabaseType::Mysql => "BIGINT UNSIGNED",
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // ========== 浮点类型 ==========
@@ -746,11 +758,13 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "REAL",
             DatabaseType::Mysql => "FLOAT",
             DatabaseType::Sqlite => "REAL",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "f64" => match db_type {
             DatabaseType::Postgresql => "DOUBLE PRECISION",
             DatabaseType::Mysql => "DOUBLE",
             DatabaseType::Sqlite => "REAL",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // ========== 字符串类型 ==========
@@ -758,11 +772,13 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "VARCHAR(255)",
             DatabaseType::Mysql => "VARCHAR(255)",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "char" => match db_type {
             DatabaseType::Postgresql => "CHAR(1)",
             DatabaseType::Mysql => "CHAR(1)",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // ========== 文本类型 ==========
@@ -770,11 +786,13 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "TEXT",
             DatabaseType::Mysql => "TEXT",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "str" => match db_type {
             DatabaseType::Postgresql => "TEXT",
             DatabaseType::Mysql => "TEXT",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // ========== JSON 类型 ==========
@@ -782,6 +800,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "JSONB",
             DatabaseType::Mysql => "JSON",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // ========== 日期时间类型 ==========
@@ -790,6 +809,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "DATE",
             DatabaseType::Mysql => "DATE",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // NaiveTime (只有时间)
@@ -797,6 +817,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "TIME",
             DatabaseType::Mysql => "TIME",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // NaiveDateTime (无时区)
@@ -804,6 +825,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "TIMESTAMP",
             DatabaseType::Mysql => "DATETIME",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // DateTime (有时区)
@@ -811,21 +833,25 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "TIMESTAMPTZ",
             DatabaseType::Mysql => "TIMESTAMP",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "chrono::datetime<chrono::fixedoffset>" => match db_type {
             DatabaseType::Postgresql => "TIMESTAMPTZ",
             DatabaseType::Mysql => "TIMESTAMP",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "chrono::datetime<chrono::utc>" => match db_type {
             DatabaseType::Postgresql => "TIMESTAMPTZ",
             DatabaseType::Mysql => "TIMESTAMP",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "chrono::datetime<chrono::local>" => match db_type {
             DatabaseType::Postgresql => "TIMESTAMPTZ",
             DatabaseType::Mysql => "TIMESTAMP",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // Duration
@@ -833,6 +859,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "INTERVAL",
             DatabaseType::Mysql => "BIGINT", // MySQL 中没有原生 interval，用秒数
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // ========== UUID ==========
@@ -840,6 +867,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "UUID",
             DatabaseType::Mysql => "CHAR(36)",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // ========== 二进制数据 ==========
@@ -847,11 +875,13 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "BYTEA",
             DatabaseType::Mysql => "BLOB",
             DatabaseType::Sqlite => "BLOB",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "byte" => match db_type {
             DatabaseType::Postgresql => "SMALLINT",
             DatabaseType::Mysql => "TINYINT",
             DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // ========== 数组类型 ==========
@@ -861,6 +891,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
                 DatabaseType::Postgresql => "text[]",
                 DatabaseType::Mysql => "JSON", // MySQL 存储数组用 JSON
                 DatabaseType::Sqlite => "TEXT",
+                DatabaseType::None => panic!("Unsupported database type"),
             }
         }
         
@@ -869,21 +900,25 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "JSONB",
             DatabaseType::Mysql => "JSON",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "hashset" | "hashset<" => match db_type {
             DatabaseType::Postgresql => "JSONB",
             DatabaseType::Mysql => "JSON",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "btreemap" | "btreemap<" => match db_type {
             DatabaseType::Postgresql => "JSONB",
             DatabaseType::Mysql => "JSON",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "btreeset" | "btreeset<" => match db_type {
             DatabaseType::Postgresql => "JSONB",
             DatabaseType::Mysql => "JSON",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // ========== Option 类型 ==========
@@ -897,16 +932,19 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "INET",
             DatabaseType::Mysql => "VARCHAR(45)",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "std::net::ipv6addr" | "ipv6addr" => match db_type {
             DatabaseType::Postgresql => "INET",
             DatabaseType::Mysql => "VARCHAR(45)",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "std::net::socketaddr" | "socketaddr" => match db_type {
             DatabaseType::Postgresql => "INET",
             DatabaseType::Mysql => "VARCHAR(45)",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // ========== 其他常见类型 ==========
@@ -914,11 +952,13 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Postgresql => "DECIMAL(10,2)",
             DatabaseType::Mysql => "DECIMAL(10,2)",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         "bigdecimal" | "bigdecimal::bigdecimal" => match db_type {
             DatabaseType::Postgresql => "DECIMAL(20,6)",
             DatabaseType::Mysql => "DECIMAL(20,6)",
             DatabaseType::Sqlite => "TEXT",
+            DatabaseType::None => panic!("Unsupported database type"),
         },
         
         // 枚举类型
@@ -930,6 +970,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
                 DatabaseType::Postgresql => "VARCHAR(50)",
                 DatabaseType::Mysql => "VARCHAR(50)",
                 DatabaseType::Sqlite => "TEXT",
+                DatabaseType::None => panic!("Unsupported database type"),
             }
         }
         
