@@ -539,7 +539,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         let mut values = Vec::new();
         for i in 0..row.column_count() {
             if let Some(val) = row.get(i) {
-                if val == "NULL" {
+                if val == "NULL" || val.is_empty() {
                     values.push(Value::Null);
                 } else if let Ok(i) = val.parse::<i64>() {
                     values.push(Value::I64(i));
