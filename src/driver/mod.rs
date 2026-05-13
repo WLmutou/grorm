@@ -1,10 +1,12 @@
 pub mod postgres;
 pub mod mysql;
 pub mod sqlite;
+pub mod default;
 
 pub use postgres::{PostgresDriver, PostgresDriverFactory};
 pub use mysql::{MysqlDriver, MysqlDriverFactory};
 pub use sqlite::{SqliteDriver, SqliteDriverFactory};
+pub use default::{DefaultDriver, DefaultDriverFactory};
 
 use crate::error::Error;
 
@@ -19,6 +21,22 @@ pub struct ConnectionConfig {
     pub database: String,
     pub ssl_mode: SslMode,
     pub max_connections: usize,
+}
+
+
+impl Default for ConnectionConfig {
+    fn default() -> Self {
+        ConnectionConfig {
+            db_type: "".to_string(),
+            host: "".to_string(),
+            port: 0,
+            username: "".to_string(),
+            password: "".to_string(),
+            database: "".to_string(),
+            ssl_mode: SslMode::Disable,
+            max_connections: 10,
+        }
+    }
 }
 
 impl ConnectionConfig {
@@ -100,6 +118,7 @@ pub enum DatabaseType {
     Postgresql,
     Mysql,
     Sqlite,
+    None,
 }
 
 /// 查询结果

@@ -1,3 +1,4 @@
+use crate::driver::default::DefaultDriverFactory;
 use crate::driver::{ConnectionConfig, DatabaseDriver, DriverFactory};
 use gorust::channel::{self, Sender, Receiver};
 use std::collections::VecDeque;
@@ -19,9 +20,32 @@ struct PoolInner {
     current_size: AtomicUsize,
 }
 
+
+
 #[derive(Clone)]
 pub struct ConnectionPool {
     inner: Arc<PoolInner>,
+}
+
+impl Default for ConnectionPool {
+    fn default() -> Self {
+        let (notify_tx, notify_rx) = channel::new();
+        
+        let inner = PoolInner {
+            connections: Mutex::new(Vec::new()),
+            available: Mutex::new(VecDeque::new()),
+            notify_tx,
+            notify_rx,
+            config: ConnectionConfig::default(),      // 需要实现 Default
+            factory: Box::new(DefaultDriverFactory), // 需要具体类型
+            max_size: 10,                             // 默认最大连接数
+            current_size: AtomicUsize::new(0),
+        };
+        
+        ConnectionPool { 
+            inner: Arc::new(inner) 
+        }
+    }
 }
 
 impl ConnectionPool {
@@ -44,6 +68,7 @@ impl ConnectionPool {
 
         ConnectionPool { inner }
     }
+
 
     pub fn get(&self) -> Result<PoolConnection, Error> {
         {

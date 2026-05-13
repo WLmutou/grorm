@@ -18,6 +18,7 @@ lazy_static = "1.4"
 log = "0.4"
 hex = "0.4"
 md-5 = "0.10"
+serde = { version = "1.0", features = ["derive"] }
 grorm-macros = { path = "grorm-macros" }
 
 [dev-dependencies]
