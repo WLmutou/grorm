@@ -2,7 +2,12 @@
 name = "grorm-macros"
 version = "0.1.0"
 edition = "2021"
-description = "Derive macros for grorm ORM"
+description = "Goroutine-native ORM for Rust with multi-database support"
+authors = ["lijun <1489573464@qq.com>"]
+license = "MIT"
+repository = "https://github.com/WLmutou/grorm"
+keywords = ["orm", "database", "postgresql", "mysql", "sqlite", "gorust"]
+categories = ["database", "asynchronous"]
 
 [lib]
 proc-macro = true
