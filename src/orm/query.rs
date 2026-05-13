@@ -962,7 +962,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
         },
         
         // 枚举类型
-        e if !normalized.contains("::") && 
+        _e if !normalized.contains("::") && 
              normalized.chars().next().unwrap_or('a').is_uppercase() &&
              !matches!(normalized.as_str(), "string" | "text" | "json" | "uuid") =>
         {

@@ -64,8 +64,6 @@ impl Serialize for Error {
     where
         S: Serializer,
     {
-        use serde::ser::SerializeStruct;
-        
         // 将 Io 错误转换为字符串
         let (variant, message) = match self {
             Error::Connection(msg) => ("Connection", msg),
