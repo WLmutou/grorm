@@ -6,7 +6,7 @@ description = "Goroutine-native ORM for Rust with multi-database support"
 authors = ["lijun <1489573464@qq.com>"]
 license = "MIT"
 repository = "https://github.com/WLmutou/grorm"
-keywords = ["orm", "database", "postgresql", "mysql", "sqlite", "gorust"]
+keywords = ["orm", "postgresql", "mysql", "sqlite", "gorust"]
 categories = ["database", "asynchronous"]
 
 [dependencies]
