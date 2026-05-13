@@ -702,6 +702,24 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "INTEGER",
             DatabaseType::None => panic!("Unsupported database type"),
         },
+        "id" | "grorm::id" => match db_type {
+            DatabaseType::Postgresql => {
+                if auto_increment {
+                    "BIGSERIAL"
+                } else {
+                    "BIGINT"
+                }
+            },
+            DatabaseType::Mysql => {
+                if auto_increment {
+                    "BIGINT AUTO_INCREMENT"
+                } else {
+                    "BIGINT"
+                }
+            },
+            DatabaseType::Sqlite => "INTEGER",
+            DatabaseType::None => panic!("Unsupported database type"),
+        },
         "i128" => match db_type {
             DatabaseType::Postgresql => "NUMERIC(39,0)",
             DatabaseType::Mysql => "DECIMAL(39,0)",

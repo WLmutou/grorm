@@ -115,6 +115,7 @@ fn is_integer_type(ty: &str) -> bool {
     ty == "i8" || ty == "i16" || ty == "i32" || ty == "i64"
         || ty == "u8" || ty == "u16" || ty == "u32" || ty == "u64"
         || ty == "isize" || ty == "usize"
+        || ty == "Id" || ty == "grorm :: Id"
 }
 
 fn has_field_attr(attrs: &[syn::Attribute], name: &str) -> bool {

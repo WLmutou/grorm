@@ -153,7 +153,7 @@ dependencies = [
  "byteorder",
  "env_logger",
  "gorust",
- "grorm-macros",
+ "grorm-macros 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex",
  "lazy_static",
  "log",
@@ -165,6 +165,17 @@ dependencies = [
 [[package]]
 name = "grorm-macros"
 version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "grorm-macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "875070160bb7b4c3f2fe4a121e7b192a72a27e6723f07f2bf7fe1dfbe179144c"
 dependencies = [
  "proc-macro2",
  "quote",

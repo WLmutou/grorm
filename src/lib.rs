@@ -71,7 +71,7 @@ pub use driver::{SqliteDriver, SqliteDriverFactory};
 pub use error::{Error, Result};
 pub use pool::ConnectionPool;
 pub use orm::{ColumnInfo, JoinClause, JoinType, Model, QueryBuilder, Transaction};
-pub use types::{FromSql, ToSql, Value};
+pub use types::{FromSql, Id, ToSql, Value};
 
 
 // 明确区分 trait 和 derive macro
