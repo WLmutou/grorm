@@ -1,10 +1,12 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
+use serde::{Deserialize, Serialize};
+
 use super::value::Value;
 use super::{FromSql, ToSql};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub struct Id(i64);
 
 impl Id {
