@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>grorm - Rust 原生协程 ORM 框架</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6c5ce7;
+            --primary-dark: #5a4bd1;
+            --secondary: #a29bfe;
+            --dark: #0f0f23;
+            --darker: #0a0a1a;
+            --light: #e8e8f0;
+            --accent: #00cec9;
+            --accent2: #fd79a8;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --glass: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.12);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            scroll-snap-type: y mandatory;
+            overflow-y: scroll;
+            scrollbar-width: none;
+        }
+
+        html::-webkit-scrollbar {
+            display: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            line-height: 1.6;
+            color: var(--light);
+            background: var(--darker);
+            overflow-x: hidden;
+        }
+
+        /* ========== Navigation Dots ========== */
+        .nav-dots {
+            position: fixed;
+            right: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .nav-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .nav-dot:hover {
+            background: rgba(255, 255, 255, 0.6);
+            transform: scale(1.3);
+        }
+
+        .nav-dot.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            box-shadow: 0 0 16px rgba(0, 206, 201, 0.6);
+            transform: scale(1.2);
+        }
+
+        .nav-dot .dot-label {
+            position: absolute;
+            right: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            white-space: nowrap;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.8);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            background: rgba(15, 15, 35, 0.9);
+            padding: 4px 12px;
+            border-radius: 12px;
+        }
+
+        .nav-dot:hover .dot-label {
+            opacity: 1;
+        }
+
+        /* ========== Sections ========== */
+        .page {
+            scroll-snap-align: start;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            padding: 2rem;
+        }
+
+        .page-inner {
+            max-width: 1100px;
+            width: 100%;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* ========== Section 1: Hero ========== */
+        #hero {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 30%, #2d1b69 60%, #0f0f23 100%);
+        }
+
+        #hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(108, 92, 231, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 206, 201, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 50% 80%, rgba(253, 121, 168, 0.08) 0%, transparent 50%);
+            animation: bgFloat 20s ease-in-out infinite;
+        }
+
+        @keyframes bgFloat {
+            0%,
+            100% {
+                transform: translate(0, 0);
+            }
+            33% {
+                transform: translate(2%, -2%);
+            }
+            66% {
+                transform: translate(-1%, 1%);
+            }
+        }
+
+        #particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .hero-content {
+            text-align: center;
+            z-index: 2;
+            position: relative;
+        }
+
+        .hero-logo {
+            font-size: 5rem;
+            margin-bottom: 1.5rem;
+            display: inline-block;
+            animation: logoPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes logoPulse {
+            0%,
+            100% {
+                transform: scale(1);
+                filter: drop-shadow(0 0 20px rgba(108, 92, 231, 0.4));
+            }
+            50% {
+                transform: scale(1.08);
+                filter: drop-shadow(0 0 40px rgba(0, 206, 201, 0.6));
+            }
+        }
+
+        .hero-logo i {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-title {
+            font-size: clamp(3rem, 8vw, 5.5rem);
+            font-weight: 800;
+            letter-spacing: -2px;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(to right, #fff 0%, #a29bfe 50%, #00cec9 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: titleShine 4s ease-in-out infinite;
+            background-size: 200% auto;
+        }
+
+        @keyframes titleShine {
+            0%,
+            100% {
+                background-position: 0% center;
+            }
+            50% {
+                background-position: 200% center;
+            }
+        }
+
+        .hero-tagline {
+            font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .hero-subtitle {
+            font-size: clamp(1rem, 1.8vw, 1.3rem);
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 2.5rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-badges {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1.2rem;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .badge:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .badge i {
+            font-size: 0.85rem;
+        }
+
+        .scroll-hint {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.8rem;
+            animation: bounce 2s ease-in-out infinite;
+            z-index: 2;
+        }
+
+        @keyframes bounce {
+            0%,
+            100% {
+                transform: translateX(-50%) translateY(0);
+            }
+            50% {
+                transform: translateX(-50%) translateY(10px);
+            }
+        }
+
+        .scroll-hint i {
+            font-size: 1.2rem;
+        }
+
+        /* ========== Section 2: Features ========== */
+        #features {
+            background: linear-gradient(180deg, #0f0f23 0%, #151530 50%, #0f0f23 100%);
+        }
+
+        .section-label {
+            text-align: center;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            color: var(--accent);
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 700;
+            margin-bottom: 3rem;
+            color: #fff;
+        }
+
+        .section-title span {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 2rem 1.8rem;
+            backdrop-filter: blur(10px);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary), var(--accent), transparent);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            border-color: rgba(108, 92, 231, 0.4);
+            box-shadow: 0 20px 40px rgba(108, 92, 231, 0.15);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            font-size: 2.2rem;
+            margin-bottom: 1.2rem;
+            display: inline-block;
+            width: 56px;
+            height: 56px;
+            line-height: 56px;
+            text-align: center;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(108, 92, 231, 0.2), rgba(0, 206, 201, 0.15));
+        }
+
+        .feature-icon i {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .feature-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.6rem;
+            color: #fff;
+        }
+
+        .feature-desc {
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+
+        /* ========== Section 3: Quick Start ========== */
+        #quickstart {
+            background: linear-gradient(180deg, #0f0f23 0%, #12122a 50%, #0f0f23 100%);
+        }
+
+        .code-block {
+            background: #0d0d1f;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.8rem 1.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .code-dots {
+            display: flex;
+            gap: 8px;
+        }
+
+        .code-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .code-dot.red {
+            background: #ff5f57;
+        }
+        .code-dot.yellow {
+            background: #febc2e;
+        }
+        .code-dot.green {
+            background: #28c840;
+        }
+
+        .code-lang {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.4);
+            font-weight: 500;
+        }
+
+        .code-body {
+            padding: 1.5rem;
+            overflow-x: auto;
+        }
+
+        .code-body pre {
+            margin: 0;
+            font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: #d4d4d4;
+            tab-size: 4;
+        }
+
+        .kw {
+            color: #c792ea;
+        }
+        .fn {
+            color: #82aaff;
+        }
+        .str {
+            color: #c3e88d;
+        }
+        .ty {
+            color: #ffcb6b;
+        }
+        .cm {
+            color: #676e95;
+            font-style: italic;
+        }
+        .attr {
+            color: #f78c6c;
+        }
+        .num {
+            color: #f78c6c;
+        }
+        .mac {
+            color: #89ddff;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .tab-btn {
+            padding: 0.7rem 1.5rem;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.4);
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+            font-family: inherit;
+        }
+
+        .tab-btn:hover {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        /* ========== Section 4: API & CRUD ========== */
+        #api {
+            background: linear-gradient(180deg, #0f0f23 0%, #141430 50%, #0f0f23 100%);
+        }
+
+        .api-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.2rem;
+        }
+
+        .api-card {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .api-card:hover {
+            border-color: rgba(108, 92, 231, 0.4);
+            transform: translateY(-4px);
+        }
+
+        .api-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .api-method {
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .api-method.get {
+            background: rgba(0, 206, 201, 0.2);
+            color: var(--accent);
+        }
+        .api-method.post {
+            background: rgba(108, 92, 231, 0.2);
+            color: var(--secondary);
+        }
+        .api-method.put {
+            background: rgba(253, 121, 168, 0.2);
+            color: var(--accent2);
+        }
+        .api-method.del {
+            background: rgba(255, 95, 87, 0.2);
+            color: #ff5f57;
+        }
+
+        .api-name {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .api-desc {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        /* ========== Section 5: Databases ========== */
+        #databases {
+            background: linear-gradient(180deg, #0f0f23 0%, #13132e 50%, #0f0f23 100%);
+        }
+
+        .db-grid {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .db-card {
+            text-align: center;
+            transition: all 0.4s ease;
+        }
+
+        .db-icon {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.2rem;
+            background: var(--glass);
+            border: 2px solid var(--glass-border);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .db-icon::after {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            z-index: -1;
+        }
+
+        .db-card:hover .db-icon {
+            transform: scale(1.08);
+            border-color: transparent;
+        }
+
+        .db-card:hover .db-icon::after {
+            opacity: 1;
+        }
+
+        .db-icon i {
+            font-size: 3rem;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .db-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.3rem;
+        }
+
+        .db-feature {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        /* ========== Section 6: Advanced ========== */
+        #advanced {
+            background: linear-gradient(180deg, #0f0f23 0%, #151530 50%, #0f0f23 100%);
+        }
+
+        .advanced-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .advanced-card {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .advanced-card:hover {
+            border-color: rgba(108, 92, 231, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .advanced-card .card-number {
+            position: absolute;
+            top: 1rem;
+            right: 1.5rem;
+            font-size: 3rem;
+            font-weight: 800;
+            color: rgba(255, 255, 255, 0.03);
+            line-height: 1;
+        }
+
+        .advanced-card h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 0.8rem;
+            color: #fff;
+        }
+
+        .advanced-card p {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        .advanced-card code {
+            display: inline-block;
+            background: rgba(108, 92, 231, 0.15);
+            color: var(--secondary);
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+
+        /* ========== Section 7: CTA & Footer ========== */
+        #cta {
+            background: linear-gradient(180deg, #0f0f23 0%, #1a1040 50%, #0f0f23 100%);
+            text-align: center;
+        }
+
+        .cta-content h2 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(to right, #fff, #a29bfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .cta-content p {
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 3rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.9rem 2rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #7c6cf0);
+            color: #fff;
+            box-shadow: 0 8px 25px rgba(108, 92, 231, 0.35);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(108, 92, 231, 0.5);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #fff;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-outline:hover {
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateY(-3px);
+        }
+
+        .footer-info {
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding-top: 2rem;
+            color: rgba(255, 255, 255, 0.35);
+            font-size: 0.85rem;
+        }
+
+        .footer-info .license {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.3rem 1rem;
+            border-radius: 20px;
+            margin-top: 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        /* ========== Animations ========== */
+        .fade-up {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .fade-up.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .delay-1 {
+            transition-delay: 0.1s;
+        }
+        .delay-2 {
+            transition-delay: 0.2s;
+        }
+        .delay-3 {
+            transition-delay: 0.3s;
+        }
+        .delay-4 {
+            transition-delay: 0.4s;
+        }
+        .delay-5 {
+            transition-delay: 0.5s;
+        }
+        .delay-6 {
+            transition-delay: 0.6s;
+        }
+
+        /* ========== Responsive ========== */
+        @media (max-width: 768px) {
+            .nav-dots {
+                right: 10px;
+                gap: 12px;
+            }
+
+            .nav-dot {
+                width: 10px;
+                height: 10px;
+            }
+
+            .nav-dot .dot-label {
+                display: none;
+            }
+
+            .page {
+                padding: 1.5rem 1rem;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .api-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .db-grid {
+                gap: 1.5rem;
+            }
+
+            .db-icon {
+                width: 90px;
+                height: 90px;
+            }
+
+            .db-icon i {
+                font-size: 2.2rem;
+            }
+
+            .code-body pre {
+                font-size: 0.75rem;
+            }
+
+            .scroll-hint {
+                bottom: 1rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .api-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-logo {
+                font-size: 3.5rem;
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation Dots -->
+    <nav class="nav-dots" id="navDots">
+        <a href="#hero" class="nav-dot active" data-section="hero"><span class="dot-label">首页</span></a>
+        <a href="#features" class="nav-dot" data-section="features"><span class="dot-label">特性</span></a>
+        <a href="#quickstart" class="nav-dot" data-section="quickstart"><span class="dot-label">快速开始</span></a>
+        <a href="#api" class="nav-dot" data-section="api"><span class="dot-label">API</span></a>
+        <a href="#databases" class="nav-dot" data-section="databases"><span class="dot-label">数据库</span></a>
+        <a href="#advanced" class="nav-dot" data-section="advanced"><span class="dot-label">高级功能</span></a>
+        <a href="#cta" class="nav-dot" data-section="cta"><span class="dot-label">开始使用</span></a>
+    </nav>
+
+    <!-- ==================== Section 1: Hero ==================== -->
+    <section class="page" id="hero">
+        <canvas id="particles"></canvas>
+        <div class="page-inner hero-content">
+            <div class="hero-logo fade-up">
+                <i class="fas fa-database"></i>
+            </div>
+            <h1 class="hero-title fade-up delay-1">grorm</h1>
+            <p class="hero-tagline fade-up delay-2">GRoutines + ORM — Rust 原生协程异步 ORM 框架</p>
+            <p class="hero-subtitle fade-up delay-3">无需 Tokio，基于 gorust 原生协程，支持 PostgreSQL / MySQL / SQLite，提供流畅的链式 API</p>
+            <div class="hero-badges fade-up delay-4">
+                <span class="badge"><i class="fas fa-bolt"></i> 原生协程</span>
+                <span class="badge"><i class="fas fa-database"></i> 多数据库</span>
+                <span class="badge"><i class="fas fa-link"></i> 链式 API</span>
+                <span class="badge"><i class="fas fa-shield-alt"></i> MIT</span>
+            </div>
+        </div>
+        <div class="scroll-hint">
+            <span>向下滚动</span>
+            <i class="fas fa-chevron-down"></i>
+        </div>
+    </section>
+
+    <!-- ==================== Section 2: Features ==================== -->
+    <section class="page" id="features">
+        <div class="page-inner">
+            <p class="section-label fade-up">核心特性</p>
+            <h2 class="section-title fade-up delay-1">为什么选择 <span>grorm</span>？</h2>
+            <div class="features-grid">
+                <div class="feature-card fade-up delay-1">
+                    <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+                    <h3 class="feature-title">原生协程</h3>
+                    <p class="feature-desc">基于 gorust 实现，无需依赖 Tokio 运行时，充分利用 Rust 协程优势，轻量高效</p>
+                </div>
+                <div class="feature-card fade-up delay-2">
+                    <div class="feature-icon"><i class="fas fa-database"></i></div>
+                    <h3 class="feature-title">多数据库支持</h3>
+                    <p class="feature-desc">统一访问接口支持 PostgreSQL、MySQL 和 SQLite，一套代码适配多种数据库</p>
+                </div>
+                <div class="feature-card fade-up delay-3">
+                    <div class="feature-icon"><i class="fas fa-link"></i></div>
+                    <h3 class="feature-title">链式 API</h3>
+                    <p class="feature-desc">流畅的链式调用风格：where_eq().limit().order().find()，代码简洁优雅</p>
+                </div>
+                <div class="feature-card fade-up delay-1">
+                    <div class="feature-icon"><i class="fas fa-tasks"></i></div>
+                    <h3 class="feature-title">事务管理</h3>
+                    <p class="feature-desc">Transaction::begin() 自动回滚机制，Drop 时自动 rollback，确保数据一致性</p>
+                </div>
+                <div class="feature-card fade-up delay-2">
+                    <div class="feature-icon"><i class="fas fa-cogs"></i></div>
+                    <h3 class="feature-title">连接池</h3>
+                    <p class="feature-desc">基于 gorust 通道的连接池管理，高效复用数据库连接，支持并发访问</p>
+                </div>
+                <div class="feature-card fade-up delay-3">
+                    <div class="feature-icon"><i class="fas fa-magic"></i></div>
+                    <h3 class="feature-title">派生宏</h3>
+                    <p class="feature-desc">#[derive(DeriveModel)] 自动生成 Model trait，支持索引、唯一约束等注解</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== Section 3: Quick Start ==================== -->
+    <section class="page" id="quickstart">
+        <div class="page-inner">
+            <p class="section-label fade-up">快速开始</p>
+            <h2 class="section-title fade-up delay-1">几行代码即可<span>开始使用</span></h2>
+            <div class="tabs fade-up delay-2">
+                <button class="tab-btn active" data-tab="sqlite">SQLite</button>
+                <button class="tab-btn" data-tab="postgres">PostgreSQL</button>
+                <button class="tab-btn" data-tab="mysql">MySQL</button>
+            </div>
+            <div class="tab-panel active fade-up delay-2" id="tab-sqlite">
+                <div class="code-block">
+                    <div class="code-header">
+                        <div class="code-dots">
+                            <span class="code-dot red"></span>
+                            <span class="code-dot yellow"></span>
+                            <span class="code-dot green"></span>
+                        </div>
+                        <span class="code-lang">Rust — SQLite</span>
+                    </div>
+                    <div class="code-body">
+<pre><span class="kw">use</span> grorm::{ConnectionConfig, ConnectionPool, SqliteDriverFactory, QueryBuilder, Value, Error};
+<span class="kw">use</span> grorm::DeriveModel;
+<span class="kw">use</span> gorust::runtime;
+
+<span class="attr">#[derive(Debug, DeriveModel)]</span>
+<span class="attr">#[table = <span class="str">"users"</span>]</span>
+<span class="kw">struct</span> <span class="ty">User</span> {
+    id: <span class="ty">i64</span>,
+    <span class="attr">#[index]</span>
+    name: <span class="ty">String</span>,
+    <span class="attr">#[unique]</span>
+    email: <span class="ty">String</span>,
+    age: <span class="ty">i32</span>,
+}
+
+<span class="mac">#[runtime]</span>
+<span class="kw">fn</span> <span class="fn">main</span>() -> <span class="ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">let</span> config = ConnectionConfig::sqlite(<span class="str">"test.db"</span>);
+    <span class="kw">let</span> pool = ConnectionPool::new(SqliteDriverFactory, config, <span class="num">4</span>);
+    <span class="kw">let mut</span> conn = pool.get()?;
+
+    <span class="kw">let mut</span> qb = QueryBuilder::&lt;<span class="ty">User</span>&gt;::new(conn.driver_mut());
+
+    qb.create_table()?;
+
+    <span class="kw">let</span> user = User { id: <span class="num">0</span>, name: <span class="str">"Alice"</span>.into(), email: <span class="str">"alice@x.com"</span>.into(), age: <span class="num">30</span> };
+    qb.insert(&amp;user)?;
+
+    <span class="kw">let</span> users = qb.where_eq(<span class="str">"name"</span>, Value::from(<span class="str">"Alice"</span>)).find()?;
+    println!(<span class="str">"{:?}"</span>, users);
+
+    Ok(())
+}</pre>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-panel fade-up delay-2" id="tab-postgres">
+                <div class="code-block">
+                    <div class="code-header">
+                        <div class="code-dots">
+                            <span class="code-dot red"></span>
+                            <span class="code-dot yellow"></span>
+                            <span class="code-dot green"></span>
+                        </div>
+                        <span class="code-lang">Rust — PostgreSQL</span>
+                    </div>
+                    <div class="code-body">
+<pre><span class="kw">use</span> grorm::{ConnectionConfig, ConnectionPool, PostgresDriverFactory, QueryBuilder, Value, Error};
+<span class="kw">use</span> grorm::DeriveModel;
+<span class="kw">use</span> gorust::runtime;
+
+<span class="attr">#[derive(Debug, DeriveModel)]</span>
+<span class="attr">#[table = <span class="str">"users"</span>]</span>
+<span class="kw">struct</span> <span class="ty">User</span> {
+    id: <span class="ty">i64</span>,
+    name: <span class="ty">String</span>,
+    email: <span class="ty">String</span>,
+    age: <span class="ty">i32</span>,
+}
+
+<span class="mac">#[runtime]</span>
+<span class="kw">fn</span> <span class="fn">main</span>() -> <span class="ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">let</span> config = ConnectionConfig::postgres(<span class="str">"localhost"</span>, <span class="num">5432</span>, <span class="str">"mydb"</span>, <span class="str">"user"</span>, <span class="str">"pass"</span>);
+    <span class="kw">let</span> pool = ConnectionPool::new(PostgresDriverFactory, config, <span class="num">4</span>);
+    <span class="kw">let mut</span> conn = pool.get()?;
+
+    <span class="kw">let mut</span> qb = QueryBuilder::&lt;<span class="ty">User</span>&gt;::new(conn.driver_mut());
+    qb.create_table()?;
+
+    qb.insert(&amp;User { id: <span class="num">0</span>, name: <span class="str">"Alice"</span>.into(), email: <span class="str">"alice@x.com"</span>.into(), age: <span class="num">30</span> })?;
+
+    <span class="kw">let</span> users = qb.find_all()?;
+    println!(<span class="str">"{:?}"</span>, users);
+
+    Ok(())
+}</pre>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-panel fade-up delay-2" id="tab-mysql">
+                <div class="code-block">
+                    <div class="code-header">
+                        <div class="code-dots">
+                            <span class="code-dot red"></span>
+                            <span class="code-dot yellow"></span>
+                            <span class="code-dot green"></span>
+                        </div>
+                        <span class="code-lang">Rust — MySQL</span>
+                    </div>
+                    <div class="code-body">
+<pre><span class="kw">use</span> grorm::{ConnectionConfig, ConnectionPool, MysqlDriverFactory, QueryBuilder, Value, Error};
+<span class="kw">use</span> grorm::DeriveModel;
+<span class="kw">use</span> gorust::runtime;
+
+<span class="attr">#[derive(Debug, DeriveModel)]</span>
+<span class="attr">#[table = <span class="str">"users"</span>]</span>
+<span class="kw">struct</span> <span class="ty">User</span> {
+    id: <span class="ty">i64</span>,
+    name: <span class="ty">String</span>,
+    email: <span class="ty">String</span>,
+    age: <span class="ty">i32</span>,
+}
+
+<span class="mac">#[runtime]</span>
+<span class="kw">fn</span> <span class="fn">main</span>() -> <span class="ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">let</span> config = ConnectionConfig::mysql(<span class="str">"localhost"</span>, <span class="num">3306</span>, <span class="str">"mydb"</span>, <span class="str">"user"</span>, <span class="str">"pass"</span>);
+    <span class="kw">let</span> pool = ConnectionPool::new(MysqlDriverFactory, config, <span class="num">4</span>);
+    <span class="kw">let mut</span> conn = pool.get()?;
+
+    <span class="kw">let mut</span> qb = QueryBuilder::&lt;<span class="ty">User</span>&gt;::new(conn.driver_mut());
+    qb.create_table()?;
+
+    qb.insert(&amp;User { id: <span class="num">0</span>, name: <span class="str">"Alice"</span>.into(), email: <span class="str">"alice@x.com"</span>.into(), age: <span class="num">30</span> })?;
+
+    <span class="kw">let</span> users = qb.find_all()?;
+    println!(<span class="str">"{:?}"</span>, users);
+
+    Ok(())
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== Section 4: API & CRUD ==================== -->
+    <section class="page" id="api">
+        <div class="page-inner">
+            <p class="section-label fade-up">CRUD 操作</p>
+            <h2 class="section-title fade-up delay-1">流畅的<span>链式 API</span></h2>
+            <div class="api-grid">
+                <div class="api-card fade-up delay-1">
+                    <div class="api-card-header">
+                        <span class="api-method post">INSERT</span>
+                        <span class="api-name">insert()</span>
+                    </div>
+                    <p class="api-desc">插入记录，自动返回自增主键 ID</p>
+                </div>
+                <div class="api-card fade-up delay-2">
+                    <div class="api-card-header">
+                        <span class="api-method get">FIND</span>
+                        <span class="api-name">find() / find_one()</span>
+                    </div>
+                    <p class="api-desc">条件查询，支持 where_eq、where_in、where_model</p>
+                </div>
+                <div class="api-card fade-up delay-3">
+                    <div class="api-card-header">
+                        <span class="api-method get">FIND</span>
+                        <span class="api-name">find_by_id()</span>
+                    </div>
+                    <p class="api-desc">按主键快速查找单条记录</p>
+                </div>
+                <div class="api-card fade-up delay-4">
+                    <div class="api-card-header">
+                        <span class="api-method get">FIND</span>
+                        <span class="api-name">find_all()</span>
+                    </div>
+                    <p class="api-desc">查询表中所有记录</p>
+                </div>
+                <div class="api-card fade-up delay-1">
+                    <div class="api-card-header">
+                        <span class="api-method put">UPDATE</span>
+                        <span class="api-name">update_one()</span>
+                    </div>
+                    <p class="api-desc">更新单个字段，返回影响行数</p>
+                </div>
+                <div class="api-card fade-up delay-2">
+                    <div class="api-card-header">
+                        <span class="api-method put">UPDATE</span>
+                        <span class="api-name">update_model()</span>
+                    </div>
+                    <p class="api-desc">从模型更新，非零/非空字段自动映射</p>
+                </div>
+                <div class="api-card fade-up delay-3">
+                    <div class="api-card-header">
+                        <span class="api-method del">DELETE</span>
+                        <span class="api-name">delete()</span>
+                    </div>
+                    <p class="api-desc">条件删除，支持链式 where 过滤</p>
+                </div>
+                <div class="api-card fade-up delay-4">
+                    <div class="api-card-header">
+                        <span class="api-method get">QUERY</span>
+                        <span class="api-name">count()</span>
+                    </div>
+                    <p class="api-desc">统计符合条件的记录总数</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== Section 5: Databases ==================== -->
+    <section class="page" id="databases">
+        <div class="page-inner">
+            <p class="section-label fade-up">数据库支持</p>
+            <h2 class="section-title fade-up delay-1">统一接口，<span>多种数据库</span></h2>
+            <div class="db-grid">
+                <div class="db-card fade-up delay-1">
+                    <div class="db-icon"><i class="fas fa-database"></i></div>
+                    <h3 class="db-name">SQLite</h3>
+                    <p class="db-feature">嵌入式 · 零配置 · 默认启用</p>
+                </div>
+                <div class="db-card fade-up delay-2">
+                    <div class="db-icon"><i class="fas fa-server"></i></div>
+                    <h3 class="db-name">PostgreSQL</h3>
+                    <p class="db-feature">企业级 · 功能丰富 · feature 开关</p>
+                </div>
+                <div class="db-card fade-up delay-3">
+                    <div class="db-icon"><i class="fas fa-network-wired"></i></div>
+                    <h3 class="db-name">MySQL</h3>
+                    <p class="db-feature">流行开源 · 广泛使用 · feature 开关</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== Section 6: Advanced ==================== -->
+    <section class="page" id="advanced">
+        <div class="page-inner">
+            <p class="section-label fade-up">高级功能</p>
+            <h2 class="section-title fade-up delay-1">更多<span>强大能力</span></h2>
+            <div class="advanced-grid">
+                <div class="advanced-card fade-up delay-1">
+                    <span class="card-number">01</span>
+                    <h3>自动表创建</h3>
+                    <p>create_table() 根据模型定义自动生成 DDL，包括字段类型映射、主键、索引和约束</p>
+                    <code>qb.create_table()?;</code>
+                </div>
+                <div class="advanced-card fade-up delay-2">
+                    <span class="card-number">02</span>
+                    <h3>索引与约束</h3>
+                    <p>通过 #[index]、#[unique]、#[unique_index] 属性轻松定义单列索引和联合唯一约束</p>
+                    <code>#[unique_index = "idx_name_age"]</code>
+                </div>
+                <div class="advanced-card fade-up delay-3">
+                    <span class="card-number">03</span>
+                    <h3>JOIN 支持</h3>
+                    <p>支持 left_join()、inner_join()、right_join() 多表关联查询</p>
+                    <code>qb.left_join("orders", "users.id = orders.user_id")</code>
+                </div>
+                <div class="advanced-card fade-up delay-1">
+                    <span class="card-number">04</span>
+                    <h3>IN 查询</h3>
+                    <p>where_in() 方法支持批量条件查询，传入 Vec&lt;Value&gt; 即可</p>
+                    <code>qb.where_in("name", vec![...])</code>
+                </div>
+                <div class="advanced-card fade-up delay-2">
+                    <span class="card-number">05</span>
+                    <h3>分页排序</h3>
+                    <p>limit()、offset()、order() 链式组合，轻松实现分页查询</p>
+                    <code>qb.order("age", true).limit(10).offset(0)</code>
+                </div>
+                <div class="advanced-card fade-up delay-3">
+                    <span class="card-number">06</span>
+                    <h3>事务自动回滚</h3>
+                    <p>Transaction 在 Drop 时自动 rollback，只有显式 commit() 才会提交</p>
+                    <code>tx.commit()?; // 未 commit 则自动回滚</code>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== Section 7: CTA & Footer ==================== -->
+    <section class="page" id="cta">
+        <div class="page-inner cta-content">
+            <h2 class="fade-up">开始使用 grorm</h2>
+            <p class="fade-up delay-1">在您的 Cargo.toml 中添加依赖，立即体验 Rust 原生协程 ORM 的强大能力</p>
+            <div class="cta-buttons fade-up delay-2">
+                <a href="https://crates.io/crates/grorm" target="_blank" class="btn btn-primary">
+                    <i class="fas fa-cube"></i> crates.io
+                </a>
+                <a href="https://github.com/WLmutou/grorm" target="_blank" class="btn btn-outline">
+                    <i class="fab fa-github"></i> GitHub
+                </a>
+            </div>
+            <div class="footer-info fade-up delay-3">
+                <p>grorm — Rust 原生协程 ORM 框架</p>
+                <p>© 2026 MIT License · 作者 lijun</p>
+                <span class="license"><i class="fas fa-lock"></i> MIT License</span>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // ========== Particle Background ==========
+        (function() {
+            const canvas = document.getElementById('particles');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            let animId;
+
+            function resize() {
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+            }
+
+            class Particle {
+                constructor() {
+                    this.reset();
+                }
+                reset() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.size = Math.random() * 2 + 0.5;
+                    this.speedX = (Math.random() - 0.5) * 0.4;
+                    this.speedY = (Math.random() - 0.5) * 0.4;
+                    this.opacity = Math.random() * 0.5 + 0.1;
+                }
+                update() {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+                    if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+                        this.reset();
+                    }
+                }
+                draw() {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(162, 155, 254, ${this.opacity})`;
+                    ctx.fill();
+                }
+            }
+
+            function init() {
+                resize();
+                particles = Array.from({ length: 80 }, () => new Particle());
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.update();
+                    p.draw();
+                });
+
+                // Draw connections
+                for (let i = 0; i < particles.length; i++) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 120) {
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.strokeStyle = `rgba(162, 155, 254, ${0.06 * (1 - dist / 120)})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                animId = requestAnimationFrame(animate);
+            }
+
+            window.addEventListener('resize', resize);
+            init();
+            animate();
+        })();
+
+        // ========== Scroll Animation (Intersection Observer) ==========
+        (function() {
+            const fadeEls = document.querySelectorAll('.fade-up');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                    }
+                });
+            }, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+
+            fadeEls.forEach(el => observer.observe(el));
+
+            // Trigger initial visible elements
+            setTimeout(() => {
+                document.querySelectorAll('#hero .fade-up').forEach(el => el.classList.add('visible'));
+            }, 100);
+        })();
+
+        // ========== Navigation Dots Active State ==========
+        (function() {
+            const dots = document.querySelectorAll('.nav-dot');
+            const sections = document.querySelectorAll('.page');
+
+            function updateActiveDot() {
+                let current = sections[0].id;
+                const scrollCenter = window.scrollY + window.innerHeight / 2;
+
+                sections.forEach(section => {
+                    const top = section.offsetTop;
+                    const bottom = top + section.offsetHeight;
+                    if (scrollCenter >= top && scrollCenter < bottom) {
+                        current = section.id;
+                    }
+                });
+
+                dots.forEach(dot => {
+                    dot.classList.toggle('active', dot.dataset.section === current);
+                });
+            }
+
+            window.addEventListener('scroll', updateActiveDot, { passive: true });
+            updateActiveDot();
+        })();
+
+        // ========== Code Tabs ==========
+        (function() {
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabPanels = document.querySelectorAll('.tab-panel');
+
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const target = btn.dataset.tab;
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    tabPanels.forEach(panel => {
+                        panel.classList.toggle('active', panel.id === 'tab-' + target);
+                    });
+                });
+            });
+        })();
+
+        // ========== Smooth scroll for nav dots ==========
+        (function() {
+            document.querySelectorAll('.nav-dot').forEach(dot => {
+                dot.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const target = document.querySelector(dot.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth' });
+                    }
+                });
+            });
+        })();
+    </script>
+</body>
+</html>
