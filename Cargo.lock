@@ -132,9 +132,9 @@ dependencies = [
 
 [[package]]
 name = "gorust"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d60e35528fdc59ae271f4cda4ba880e065792e0f3bf4bd2fda0a0ee3e9bc430e"
+checksum = "8ef1e120056fa6f8a00d108360ff955c23e4a77a34029f92ab804d8aef421ae5"
 dependencies = [
  "ctrlc",
  "env_logger",

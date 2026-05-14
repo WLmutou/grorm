@@ -24,7 +24,7 @@ serde = { version = "1.0", features = ["derive"] }
 env_logger = "0.10"
 
 [features]
-default = ["postgres"]
+default = ["sqlite"]
 postgres = []
 mysql = []
 sqlite = []
