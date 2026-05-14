@@ -17,7 +17,9 @@ impl SqliteDriver {
     }
 
     fn get_conn(&mut self) -> Result<&mut SqliteConnection, Error> {
-        self.conn.as_mut().ok_or_else(|| Error::Connection("not connected".into()))
+        self.conn
+            .as_mut()
+            .ok_or_else(|| Error::Connection("not connected".into()))
     }
 
     fn extract_table_name(&self, sql: &str) -> String {
@@ -80,7 +82,11 @@ impl DatabaseDriver for SqliteDriver {
                         let col_info = &columns_info[idx];
                         let data_type = DataType::Text;
                         let column = Column::new(&col_info.name, data_type);
-                        let val = if value == "NULL" { None } else { Some(value.clone()) };
+                        let val = if value == "NULL" {
+                            None
+                        } else {
+                            Some(value.clone())
+                        };
                         row.push(column, val);
                     }
                     rows.push(row);
@@ -114,7 +120,11 @@ impl DatabaseDriver for SqliteDriver {
         Ok(())
     }
 
-    fn execute_prepared(&mut self, _name: &str, _params: &[Parameter]) -> Result<QueryResult, Error> {
+    fn execute_prepared(
+        &mut self,
+        _name: &str,
+        _params: &[Parameter],
+    ) -> Result<QueryResult, Error> {
         Ok(QueryResult {
             rows: Vec::new(),
             affected_rows: 0,

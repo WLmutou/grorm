@@ -1,16 +1,19 @@
-use grorm::{ConnectionConfig, ConnectionPool, PostgresDriverFactory, QueryBuilder, Transaction, Value, Error};
+use gorust::{channel, go, runtime};
 use grorm::DeriveModel;
-use gorust::{go, runtime, channel};
+use grorm::{
+    ConnectionConfig, ConnectionPool, Error, PostgresDriverFactory, QueryBuilder, Transaction,
+    Value,
+};
 
 #[derive(Debug, DeriveModel)]
 #[table = "users"]
 struct User {
-    id: i64,                          // 自动主键
-    #[index]                          // 单列索引
+    id: i64, // 自动主键
+    #[index] // 单列索引
     name: String,
-    #[unique]                         // 单列唯一约束
+    #[unique] // 单列唯一约束
     email: String,
-    #[unique_index = "idx_name_age"]  // 联合唯一索引（同名的列组成一组）
+    #[unique_index = "idx_name_age"] // 联合唯一索引（同名的列组成一组）
     first_name: String,
     #[unique_index = "idx_name_age"]
     last_name: String,
@@ -33,18 +36,38 @@ fn run() -> std::result::Result<(), Error> {
     // seed data
     {
         let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
-        qb.insert(&User { id: 0, name: "Alice".into(), email: "alice@x.com".into(), first_name: "Alice".into(), last_name: "Doe".into(), age: 30 })?;
-        qb.insert(&User { id: 0, name: "Bob".into(), email: "bob@x.com".into(), first_name: "Bob".into(), last_name: "Doe".into(), age: 25 })?;
-        qb.insert(&User { id: 0, name: "Charlie".into(), email: "charlie@x.com".into(), first_name: "Charlie".into(), last_name: "Doe".into(), age: 35 })?;
+        qb.insert(&User {
+            id: 0,
+            name: "Alice".into(),
+            email: "alice@x.com".into(),
+            first_name: "Alice".into(),
+            last_name: "Doe".into(),
+            age: 30,
+        })?;
+        qb.insert(&User {
+            id: 0,
+            name: "Bob".into(),
+            email: "bob@x.com".into(),
+            first_name: "Bob".into(),
+            last_name: "Doe".into(),
+            age: 25,
+        })?;
+        qb.insert(&User {
+            id: 0,
+            name: "Charlie".into(),
+            email: "charlie@x.com".into(),
+            first_name: "Charlie".into(),
+            last_name: "Doe".into(),
+            age: 35,
+        })?;
     }
 
     // where_in
     {
         let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
-        let users = qb.where_in("name", vec![
-            Value::from("Alice"),
-            Value::from("Bob"),
-        ]).find()?;
+        let users = qb
+            .where_in("name", vec![Value::from("Alice"), Value::from("Bob")])
+            .find()?;
         println!("where_in [Alice, Bob]: {:?}", users);
     }
 
@@ -53,13 +76,27 @@ fn run() -> std::result::Result<(), Error> {
         let mut tx = Transaction::<User>::begin(conn.driver_mut())?;
         tx.where_eq("name", Value::from("Alice"))
             .update_one("age", Value::from(31))?;
-        tx.insert(&User { id: 0, name: "Dave".into(), email: "dave@x.com".into(), first_name: "Dave".into(), last_name: "Doe".into(), age: 40 })?;
+        tx.insert(&User {
+            id: 0,
+            name: "Dave".into(),
+            email: "dave@x.com".into(),
+            first_name: "Dave".into(),
+            last_name: "Doe".into(),
+            age: 40,
+        })?;
         tx.commit()?;
         println!("Transaction committed");
     }
 
     {
-        let user = User { id: 0, name: "Eve".into(), email: "eve@x.com".into(), first_name: "Eve".into(), last_name: "Doe".into(), age: 32 };
+        let user = User {
+            id: 0,
+            name: "Eve".into(),
+            email: "eve@x.com".into(),
+            first_name: "Eve".into(),
+            last_name: "Doe".into(),
+            age: 32,
+        };
         let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
         let all = qb.find_all()?;
         println!("All users: {:?}", all);

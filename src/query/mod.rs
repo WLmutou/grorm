@@ -1,9 +1,9 @@
-pub mod select;
-pub mod insert;
-pub mod update;
 pub mod delete;
+pub mod insert;
+pub mod select;
+pub mod update;
 
-pub use select::SelectBuilder;
-pub use insert::InsertBuilder;
-pub use update::UpdateBuilder;
 pub use delete::DeleteBuilder;
+pub use insert::InsertBuilder;
+pub use select::SelectBuilder;
+pub use update::UpdateBuilder;

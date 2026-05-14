@@ -37,8 +37,6 @@ fn cleanup(db_path: &str) {
     let _ = std::fs::remove_file(db_path);
 }
 
-
-
 fn case_create_table() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
@@ -61,14 +59,17 @@ fn case_create_table() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_insert_and_find_by_id() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    let user = TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 };
+    let user = TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    };
     let id = qb.insert(&user)?;
     assert!(id.is_some());
     assert_eq!(id.unwrap(), 1);
@@ -87,15 +88,23 @@ fn case_insert_and_find_by_id() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_find_all() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
 
     let all = qb.find_all()?;
     assert_eq!(all.len(), 2);
@@ -104,15 +113,23 @@ fn case_find_all() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_where_eq_and_find() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
 
     let users = qb.where_eq("age", Value::from(30)).find()?;
     assert_eq!(users.len(), 1);
@@ -122,35 +139,63 @@ fn case_where_eq_and_find() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_where_in() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
-    qb.insert(&TestUser { id: 0, name: "Charlie".into(), email: "charlie@test.com".into(), age: 35 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Charlie".into(),
+        email: "charlie@test.com".into(),
+        age: 35,
+    })?;
 
-    let users = qb.where_in("name", vec![Value::from("Alice"), Value::from("Bob")]).find()?;
+    let users = qb
+        .where_in("name", vec![Value::from("Alice"), Value::from("Bob")])
+        .find()?;
     assert_eq!(users.len(), 2);
 
     cleanup(&db_path);
     Ok(())
 }
 
-
-
 fn case_where_model() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
 
-    let filter = TestUser { id: 1, name: "".into(), email: "".into(), age: 0 };
+    let filter = TestUser {
+        id: 1,
+        name: "".into(),
+        email: "".into(),
+        age: 0,
+    };
     let users = qb.where_model(&filter).find()?;
     assert_eq!(users.len(), 1);
     assert_eq!(users[0].name, "Alice");
@@ -159,15 +204,18 @@ fn case_where_model() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_limit_offset_order() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
     for i in 0..10 {
-        qb.insert(&TestUser { id: 0, name: format!("User{}", i), email: format!("user{}@test.com", i), age: 20 + i })?;
+        qb.insert(&TestUser {
+            id: 0,
+            name: format!("User{}", i),
+            email: format!("user{}@test.com", i),
+            age: 20 + i,
+        })?;
     }
 
     let all = qb.find_all()?;
@@ -177,15 +225,23 @@ fn case_limit_offset_order() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_count() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
 
     let total = qb.count()?;
     assert_eq!(total, 2);
@@ -194,16 +250,21 @@ fn case_count() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_update_one() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
-    let rows = qb.where_eq("name", Value::from("Alice")).update_one("age", Value::from(31))?;
+    let rows = qb
+        .where_eq("name", Value::from("Alice"))
+        .update_one("age", Value::from(31))?;
     assert_eq!(rows, 1);
 
     let user = qb.find_by_id(1)?;
@@ -213,17 +274,27 @@ fn case_update_one() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_update_model() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
-    let update = TestUser { id: 0, name: "".into(), email: "".into(), age: 35 };
-    let rows = qb.where_eq("name", Value::from("Alice")).update_model(&update)?;
+    let update = TestUser {
+        id: 0,
+        name: "".into(),
+        email: "".into(),
+        age: 35,
+    };
+    let rows = qb
+        .where_eq("name", Value::from("Alice"))
+        .update_model(&update)?;
     assert_eq!(rows, 1);
 
     let user = qb.find_by_id(1)?;
@@ -233,15 +304,23 @@ fn case_update_model() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_delete() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
 
     let rows = qb.where_eq("name", Value::from("Alice")).delete()?;
     assert_eq!(rows, 1);
@@ -254,16 +333,24 @@ fn case_delete() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_commit() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     {
         let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-        tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-        tx.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+        tx.insert(&TestUser {
+            id: 0,
+            name: "Alice".into(),
+            email: "alice@test.com".into(),
+            age: 30,
+        })?;
+        tx.insert(&TestUser {
+            id: 0,
+            name: "Bob".into(),
+            email: "bob@test.com".into(),
+            age: 25,
+        })?;
         tx.commit()?;
     }
 
@@ -275,15 +362,18 @@ fn case_transaction_commit() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_rollback() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     {
         let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-        tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+        tx.insert(&TestUser {
+            id: 0,
+            name: "Alice".into(),
+            email: "alice@test.com".into(),
+            age: 30,
+        })?;
         tx.rollback()?;
     }
 
@@ -295,15 +385,18 @@ fn case_transaction_rollback() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_auto_rollback_on_drop() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     {
         let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-        tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+        tx.insert(&TestUser {
+            id: 0,
+            name: "Alice".into(),
+            email: "alice@test.com".into(),
+            age: 30,
+        })?;
     }
 
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
@@ -314,15 +407,23 @@ fn case_transaction_auto_rollback_on_drop() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_find_one() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
 
     let user = qb.where_eq("age", Value::from(30)).find_one()?;
     assert!(user.is_some());
@@ -335,14 +436,17 @@ fn case_find_one() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_find_where() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
     let users = qb.find_where("name", Value::from("Alice"))?;
     assert_eq!(users.len(), 1);
@@ -352,14 +456,17 @@ fn case_find_where() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_unique_constraint() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
     let schema = TestUser::table_schema();
     let email_col = schema.iter().find(|c| c.name == "email").unwrap();
@@ -368,8 +475,6 @@ fn case_unique_constraint() -> Result<(), Error> {
     cleanup(&db_path);
     Ok(())
 }
-
-
 
 fn case_update_without_where() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
@@ -383,8 +488,6 @@ fn case_update_without_where() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_delete_without_where() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
@@ -397,18 +500,34 @@ fn case_delete_without_where() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_multiple_conditions() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Charlie".into(), email: "charlie@test.com".into(), age: 25 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Charlie".into(),
+        email: "charlie@test.com".into(),
+        age: 25,
+    })?;
 
-    let users = qb.where_eq("age", Value::from(30)).where_eq("name", Value::from("Alice")).find()?;
+    let users = qb
+        .where_eq("age", Value::from(30))
+        .where_eq("name", Value::from("Alice"))
+        .find()?;
     assert_eq!(users.len(), 1);
     assert_eq!(users[0].name, "Alice");
 
@@ -416,15 +535,23 @@ fn case_multiple_conditions() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_chain_reset_after_find() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
 
     let users = qb.where_eq("age", Value::from(30)).find()?;
     assert_eq!(users.len(), 1);
@@ -436,21 +563,15 @@ fn case_chain_reset_after_find() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_table_name() -> Result<(), Error> {
     assert_eq!(TestUser::table_name(), "test_users");
     Ok(())
 }
 
-
-
 fn case_primary_key() -> Result<(), Error> {
     assert_eq!(TestUser::primary_key(), "id");
     Ok(())
 }
-
-
 
 fn case_columns() -> Result<(), Error> {
     let cols = TestUser::columns();
@@ -458,10 +579,13 @@ fn case_columns() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_to_values_and_from_row() -> Result<(), Error> {
-    let user = TestUser { id: 1, name: "Alice".into(), email: "alice@test.com".into(), age: 30 };
+    let user = TestUser {
+        id: 1,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    };
     let values = user.to_values();
     assert_eq!(values.len(), 4);
 
@@ -470,8 +594,6 @@ fn case_to_values_and_from_row() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_error_display() -> Result<(), Error> {
     let err = Error::NotFound("user 1".into());
@@ -486,8 +608,6 @@ fn case_error_display() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_error_from_string() -> Result<(), Error> {
     let err: Error = "test error".into();
     assert_eq!(format!("{}", err), "protocol error: test error");
@@ -498,8 +618,6 @@ fn case_error_from_string() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_error_from_io() -> Result<(), Error> {
     let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
     let err: Error = io_err.into();
@@ -507,8 +625,6 @@ fn case_error_from_io() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_join_sql_generation() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
@@ -528,8 +644,6 @@ fn case_join_sql_generation() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_value_conversions() -> Result<(), Error> {
     use grorm::{FromSql, ToSql};
 
@@ -541,7 +655,10 @@ fn case_value_conversions() -> Result<(), Error> {
     let v = Value::String("hello".into());
     let s: String = FromSql::from_sql(&v).unwrap();
     assert_eq!(s, "hello");
-    assert_eq!(ToSql::to_sql(&"hello".to_string()), Value::String("hello".into()));
+    assert_eq!(
+        ToSql::to_sql(&"hello".to_string()),
+        Value::String("hello".into())
+    );
 
     let v = Value::I32(7);
     let i: i32 = FromSql::from_sql(&v).unwrap();
@@ -550,8 +667,6 @@ fn case_value_conversions() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_value_from() -> Result<(), Error> {
     let v = Value::from("hello");
@@ -568,8 +683,6 @@ fn case_value_from() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_connection_config() -> Result<(), Error> {
     let config = ConnectionConfig::sqlite("test.db");
@@ -591,8 +704,6 @@ fn case_connection_config() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_pool_get_and_return() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
 
@@ -611,16 +722,29 @@ fn case_pool_get_and_return() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_insert_multiple() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    let id1 = qb.insert(&TestUser { id: 0, name: "A".into(), email: "a@test.com".into(), age: 20 })?;
-    let id2 = qb.insert(&TestUser { id: 0, name: "B".into(), email: "b@test.com".into(), age: 21 })?;
-    let id3 = qb.insert(&TestUser { id: 0, name: "C".into(), email: "c@test.com".into(), age: 22 })?;
+    let id1 = qb.insert(&TestUser {
+        id: 0,
+        name: "A".into(),
+        email: "a@test.com".into(),
+        age: 20,
+    })?;
+    let id2 = qb.insert(&TestUser {
+        id: 0,
+        name: "B".into(),
+        email: "b@test.com".into(),
+        age: 21,
+    })?;
+    let id3 = qb.insert(&TestUser {
+        id: 0,
+        name: "C".into(),
+        email: "c@test.com".into(),
+        age: 22,
+    })?;
 
     assert_eq!(id1, Some(1));
     assert_eq!(id2, Some(2));
@@ -633,8 +757,6 @@ fn case_insert_multiple() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_multiple_ops() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
@@ -642,10 +764,21 @@ fn case_transaction_multiple_ops() -> Result<(), Error> {
     {
         let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
 
-        tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-        tx.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+        tx.insert(&TestUser {
+            id: 0,
+            name: "Alice".into(),
+            email: "alice@test.com".into(),
+            age: 30,
+        })?;
+        tx.insert(&TestUser {
+            id: 0,
+            name: "Bob".into(),
+            email: "bob@test.com".into(),
+            age: 25,
+        })?;
 
-        tx.where_eq("name", Value::from("Alice")).update_one("age", Value::from(31))?;
+        tx.where_eq("name", Value::from("Alice"))
+            .update_one("age", Value::from(31))?;
         tx.where_eq("name", Value::from("Bob")).delete()?;
 
         let users = tx.find_all()?;
@@ -665,8 +798,6 @@ fn case_transaction_multiple_ops() -> Result<(), Error> {
     cleanup(&db_path);
     Ok(())
 }
-
-
 
 fn case_composite_unique_index() -> Result<(), Error> {
     #[derive(Debug, PartialEq, DeriveModel)]
@@ -691,7 +822,11 @@ fn case_composite_unique_index() -> Result<(), Error> {
     let mut qb = QueryBuilder::<CompositeUser>::new(conn.driver_mut());
     qb.create_table()?;
 
-    qb.insert(&CompositeUser { id: 0, name: "Alice".into(), email: "alice@test.com".into() })?;
+    qb.insert(&CompositeUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+    })?;
 
     let all = qb.find_all()?;
     assert_eq!(all.len(), 1);
@@ -700,30 +835,30 @@ fn case_composite_unique_index() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_custom_table_name() -> Result<(), Error> {
     #[derive(Debug, PartialEq, DeriveModel)]
     #[table = "custom_table_name"]
-    struct CustomTable { id: i64, name: String }
+    struct CustomTable {
+        id: i64,
+        name: String,
+    }
 
     assert_eq!(CustomTable::table_name(), "custom_table_name");
     Ok(())
 }
 
-
-
 fn case_custom_primary_key() -> Result<(), Error> {
     #[derive(Debug, PartialEq, DeriveModel)]
     #[table = "test_custom_pk"]
     #[primary_key = "uuid"]
-    struct CustomPk { uuid: String, name: String }
+    struct CustomPk {
+        uuid: String,
+        name: String,
+    }
 
     assert_eq!(CustomPk::primary_key(), "uuid");
     Ok(())
 }
-
-
 
 fn case_null_value() -> Result<(), Error> {
     use grorm::FromSql;
@@ -734,8 +869,6 @@ fn case_null_value() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_bool_value() -> Result<(), Error> {
     use grorm::{FromSql, ToSql};
@@ -750,8 +883,6 @@ fn case_bool_value() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_f64_value() -> Result<(), Error> {
     use grorm::{FromSql, ToSql};
 
@@ -763,8 +894,6 @@ fn case_f64_value() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_bytes_value() -> Result<(), Error> {
     use grorm::{FromSql, ToSql};
@@ -779,8 +908,6 @@ fn case_bytes_value() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_value_clone_and_debug() -> Result<(), Error> {
     let v = Value::String("hello".into());
     let v2 = v.clone();
@@ -790,8 +917,6 @@ fn case_value_clone_and_debug() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_error_debug() -> Result<(), Error> {
     let err = Error::NotFound("test".into());
     let debug_str = format!("{:?}", err);
@@ -800,8 +925,6 @@ fn case_error_debug() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_error_source() -> Result<(), Error> {
     use std::error::Error as StdError;
@@ -816,8 +939,6 @@ fn case_error_source() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_join_type_sql() -> Result<(), Error> {
     use grorm::JoinType;
 
@@ -827,8 +948,6 @@ fn case_join_type_sql() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_query_builder_table_name() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
@@ -841,15 +960,23 @@ fn case_query_builder_table_name() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_count() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-    tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    tx.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+    tx.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    tx.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
 
     let count = tx.count()?;
     assert_eq!(count, 2);
@@ -860,14 +987,17 @@ fn case_transaction_count() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_find_one() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-    tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    tx.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
     let user = tx.find_one()?;
     assert!(user.is_some());
@@ -879,14 +1009,17 @@ fn case_transaction_find_one() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_find_where() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-    tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    tx.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
     let users = tx.find_where("name", Value::from("Alice"))?;
     assert_eq!(users.len(), 1);
@@ -898,17 +1031,27 @@ fn case_transaction_find_where() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_update_model() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-    tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    tx.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
-    let update = TestUser { id: 0, name: "".into(), email: "".into(), age: 35 };
-    let rows = tx.where_eq("name", Value::from("Alice")).update_model(&update)?;
+    let update = TestUser {
+        id: 0,
+        name: "".into(),
+        email: "".into(),
+        age: 35,
+    };
+    let rows = tx
+        .where_eq("name", Value::from("Alice"))
+        .update_model(&update)?;
     assert_eq!(rows, 1);
 
     let user = tx.find_by_id(1)?;
@@ -920,15 +1063,18 @@ fn case_transaction_update_model() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_limit_offset_order() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
     for i in 0..5 {
-        tx.insert(&TestUser { id: 0, name: format!("User{}", i), email: format!("user{}@test.com", i), age: 20 + i })?;
+        tx.insert(&TestUser {
+            id: 0,
+            name: format!("User{}", i),
+            email: format!("user{}@test.com", i),
+            age: 20 + i,
+        })?;
     }
 
     let all = tx.find_all()?;
@@ -940,18 +1086,33 @@ fn case_transaction_limit_offset_order() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_where_in() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-    tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    tx.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
-    tx.insert(&TestUser { id: 0, name: "Charlie".into(), email: "charlie@test.com".into(), age: 35 })?;
+    tx.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    tx.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
+    tx.insert(&TestUser {
+        id: 0,
+        name: "Charlie".into(),
+        email: "charlie@test.com".into(),
+        age: 35,
+    })?;
 
-    let users = tx.where_in("name", vec![Value::from("Alice"), Value::from("Bob")]).find()?;
+    let users = tx
+        .where_in("name", vec![Value::from("Alice"), Value::from("Bob")])
+        .find()?;
     assert_eq!(users.len(), 2);
 
     tx.commit()?;
@@ -960,17 +1121,30 @@ fn case_transaction_where_in() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_where_model() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-    tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
-    tx.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 25 })?;
+    tx.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
+    tx.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 25,
+    })?;
 
-    let filter = TestUser { id: 1, name: "".into(), email: "".into(), age: 0 };
+    let filter = TestUser {
+        id: 1,
+        name: "".into(),
+        email: "".into(),
+        age: 0,
+    };
     let users = tx.where_model(&filter).find()?;
     assert_eq!(users.len(), 1);
     assert_eq!(users[0].name, "Alice");
@@ -981,15 +1155,18 @@ fn case_transaction_where_model() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_explicit_rollback() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     {
         let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-        tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+        tx.insert(&TestUser {
+            id: 0,
+            name: "Alice".into(),
+            email: "alice@test.com".into(),
+            age: 30,
+        })?;
         tx.rollback()?;
     }
 
@@ -1001,15 +1178,18 @@ fn case_transaction_explicit_rollback() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_transaction_commit_then_drop() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
 
     {
         let mut tx = Transaction::<TestUser>::begin(conn.driver_mut())?;
-        tx.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+        tx.insert(&TestUser {
+            id: 0,
+            name: "Alice".into(),
+            email: "alice@test.com".into(),
+            age: 30,
+        })?;
         tx.commit()?;
     }
 
@@ -1021,31 +1201,44 @@ fn case_transaction_commit_then_drop() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_update_model_no_fields() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
-    let empty_update = TestUser { id: 0, name: "".into(), email: "".into(), age: 0 };
-    let result = qb.where_eq("name", Value::from("Alice")).update_model(&empty_update);
+    let empty_update = TestUser {
+        id: 0,
+        name: "".into(),
+        email: "".into(),
+        age: 0,
+    };
+    let result = qb
+        .where_eq("name", Value::from("Alice"))
+        .update_model(&empty_update);
     assert!(result.is_err());
 
     cleanup(&db_path);
     Ok(())
 }
 
-
-
 fn case_insert_with_explicit_id() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 100, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    qb.insert(&TestUser {
+        id: 100,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
     let all = qb.find_all()?;
     assert_eq!(all.len(), 1);
@@ -1054,8 +1247,6 @@ fn case_insert_with_explicit_id() -> Result<(), Error> {
     cleanup(&db_path);
     Ok(())
 }
-
-
 
 fn case_count_empty_table() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
@@ -1069,8 +1260,6 @@ fn case_count_empty_table() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_find_all_empty() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
@@ -1083,15 +1272,23 @@ fn case_find_all_empty() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_order_multiple_columns() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Bob".into(), email: "bob@test.com".into(), age: 30 })?;
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Bob".into(),
+        email: "bob@test.com".into(),
+        age: 30,
+    })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
     let all = qb.find_all()?;
     assert_eq!(all.len(), 2);
@@ -1100,14 +1297,17 @@ fn case_order_multiple_columns() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_where_in_empty() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
     let all = qb.find_all()?;
     assert_eq!(all.len(), 1);
@@ -1116,21 +1316,19 @@ fn case_where_in_empty() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_update_one_zero_rows() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    let rows = qb.where_eq("name", Value::from("Nobody")).update_one("age", Value::from(99))?;
+    let rows = qb
+        .where_eq("name", Value::from("Nobody"))
+        .update_one("age", Value::from(99))?;
     assert_eq!(rows, 0);
 
     cleanup(&db_path);
     Ok(())
 }
-
-
 
 fn case_delete_zero_rows() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
@@ -1144,8 +1342,6 @@ fn case_delete_zero_rows() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_find_no_results() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
@@ -1158,14 +1354,17 @@ fn case_find_no_results() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_limit_zero() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
     let all = qb.find_all()?;
     assert_eq!(all.len(), 1);
@@ -1173,15 +1372,18 @@ fn case_limit_zero() -> Result<(), Error> {
     cleanup(&db_path);
     Ok(())
 }
-
-
 
 fn case_offset_beyond_data() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    qb.insert(&TestUser { id: 0, name: "Alice".into(), email: "alice@test.com".into(), age: 30 })?;
+    qb.insert(&TestUser {
+        id: 0,
+        name: "Alice".into(),
+        email: "alice@test.com".into(),
+        age: 30,
+    })?;
 
     let all = qb.find_all()?;
     assert_eq!(all.len(), 1);
@@ -1189,8 +1391,6 @@ fn case_offset_beyond_data() -> Result<(), Error> {
     cleanup(&db_path);
     Ok(())
 }
-
-
 
 fn case_connection_config_types() -> Result<(), Error> {
     let sqlite = ConnectionConfig::sqlite("test.db");
@@ -1205,8 +1405,6 @@ fn case_connection_config_types() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_column_info_debug() -> Result<(), Error> {
     let schema = TestUser::table_schema();
     let debug_str = format!("{:?}", schema);
@@ -1218,20 +1416,20 @@ fn case_column_info_debug() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_join_clause_debug() -> Result<(), Error> {
     use grorm::{JoinClause, JoinType};
 
-    let clause = JoinClause { join_type: JoinType::Left, table: "orders".into(), on_clause: "users.id = orders.user_id".into() };
+    let clause = JoinClause {
+        join_type: JoinType::Left,
+        table: "orders".into(),
+        on_clause: "users.id = orders.user_id".into(),
+    };
     let debug_str = format!("{:?}", clause);
     assert!(debug_str.contains("orders"));
     assert!(debug_str.contains("Left"));
 
     Ok(())
 }
-
-
 
 fn case_join_type_debug() -> Result<(), Error> {
     use grorm::JoinType;
@@ -1243,8 +1441,6 @@ fn case_join_type_debug() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_join_type_clone() -> Result<(), Error> {
     use grorm::JoinType;
 
@@ -1255,8 +1451,6 @@ fn case_join_type_clone() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_column_info_clone() -> Result<(), Error> {
     let schema = TestUser::table_schema();
     let cloned = schema[0].clone();
@@ -1264,8 +1458,6 @@ fn case_column_info_clone() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_value_partial_eq() -> Result<(), Error> {
     assert_eq!(Value::I64(1), Value::I64(1));
@@ -1275,16 +1467,12 @@ fn case_value_partial_eq() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_value_default() -> Result<(), Error> {
     let v = Value::Null;
     assert_eq!(v, Value::Null);
 
     Ok(())
 }
-
-
 
 fn case_value_from_str() -> Result<(), Error> {
     let v = Value::from("hello");
@@ -1293,16 +1481,12 @@ fn case_value_from_str() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_value_from_i64() -> Result<(), Error> {
     let v = Value::from(42i64);
     assert_eq!(v, Value::I64(42));
 
     Ok(())
 }
-
-
 
 fn case_value_from_i32() -> Result<(), Error> {
     let v = Value::from(7i32);
@@ -1311,16 +1495,12 @@ fn case_value_from_i32() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_value_from_f64() -> Result<(), Error> {
     let v = Value::from(3.14);
     assert_eq!(v, Value::F64(3.14));
 
     Ok(())
 }
-
-
 
 fn case_value_from_bool() -> Result<(), Error> {
     let v = Value::from(true);
@@ -1329,8 +1509,6 @@ fn case_value_from_bool() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_value_from_bytes() -> Result<(), Error> {
     let data = vec![1u8, 2, 3];
     let v = Value::from(data.clone());
@@ -1338,8 +1516,6 @@ fn case_value_from_bytes() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_from_sql_i64() -> Result<(), Error> {
     use grorm::FromSql;
@@ -1351,8 +1527,6 @@ fn case_from_sql_i64() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_from_sql_i32() -> Result<(), Error> {
     use grorm::FromSql;
 
@@ -1362,8 +1536,6 @@ fn case_from_sql_i32() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_from_sql_string() -> Result<(), Error> {
     use grorm::FromSql;
@@ -1375,8 +1547,6 @@ fn case_from_sql_string() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_from_sql_f64() -> Result<(), Error> {
     use grorm::FromSql;
 
@@ -1387,8 +1557,6 @@ fn case_from_sql_f64() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_from_sql_bool() -> Result<(), Error> {
     use grorm::FromSql;
 
@@ -1398,8 +1566,6 @@ fn case_from_sql_bool() -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 fn case_from_sql_bytes() -> Result<(), Error> {
     use grorm::FromSql;
@@ -1412,8 +1578,6 @@ fn case_from_sql_bytes() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_from_sql_null() -> Result<(), Error> {
     use grorm::FromSql;
 
@@ -1424,15 +1588,11 @@ fn case_from_sql_null() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_to_sql_i64() -> Result<(), Error> {
     use grorm::ToSql;
     assert_eq!(ToSql::to_sql(&42i64), Value::I64(42));
     Ok(())
 }
-
-
 
 fn case_to_sql_i32() -> Result<(), Error> {
     use grorm::ToSql;
@@ -1440,23 +1600,20 @@ fn case_to_sql_i32() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_to_sql_string() -> Result<(), Error> {
     use grorm::ToSql;
-    assert_eq!(ToSql::to_sql(&"hello".to_string()), Value::String("hello".into()));
+    assert_eq!(
+        ToSql::to_sql(&"hello".to_string()),
+        Value::String("hello".into())
+    );
     Ok(())
 }
-
-
 
 fn case_to_sql_f64() -> Result<(), Error> {
     use grorm::ToSql;
     assert_eq!(ToSql::to_sql(&3.14f64), Value::F64(3.14));
     Ok(())
 }
-
-
 
 fn case_to_sql_bool() -> Result<(), Error> {
     use grorm::ToSql;
@@ -1465,8 +1622,6 @@ fn case_to_sql_bool() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_to_sql_bytes() -> Result<(), Error> {
     use grorm::ToSql;
     let data = vec![1u8, 2, 3];
@@ -1474,15 +1629,11 @@ fn case_to_sql_bytes() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_to_sql_str() -> Result<(), Error> {
     use grorm::ToSql;
     assert_eq!(ToSql::to_sql(&"hello"), Value::String("hello".into()));
     Ok(())
 }
-
-
 
 fn case_to_sql_option_some() -> Result<(), Error> {
     use grorm::ToSql;
@@ -1491,16 +1642,12 @@ fn case_to_sql_option_some() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_to_sql_option_none() -> Result<(), Error> {
     use grorm::ToSql;
     let opt: Option<i64> = None;
     assert_eq!(ToSql::to_sql(&opt), Value::Null);
     Ok(())
 }
-
-
 
 fn case_error_from_box_dyn() -> Result<(), Error> {
     let io_err = std::io::Error::new(std::io::ErrorKind::Other, "test");
@@ -1510,23 +1657,17 @@ fn case_error_from_box_dyn() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_error_from_str() -> Result<(), Error> {
     let err: Error = "test error".into();
     assert_eq!(format!("{}", err), "protocol error: test error");
     Ok(())
 }
 
-
-
 fn case_error_from_string_type() -> Result<(), Error> {
     let err: Error = "test error".to_string().into();
     assert_eq!(format!("{}", err), "protocol error: test error");
     Ok(())
 }
-
-
 
 fn case_error_from_io_error() -> Result<(), Error> {
     let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
@@ -1535,22 +1676,30 @@ fn case_error_from_io_error() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_error_display_all_variants() -> Result<(), Error> {
-    assert_eq!(format!("{}", Error::Connection("x".into())), "connection error: x");
+    assert_eq!(
+        format!("{}", Error::Connection("x".into())),
+        "connection error: x"
+    );
     assert_eq!(format!("{}", Error::Query("x".into())), "query error: x");
-    assert_eq!(format!("{}", Error::Execute("x".into())), "execute error: x");
-    assert_eq!(format!("{}", Error::Protocol("x".into())), "protocol error: x");
+    assert_eq!(
+        format!("{}", Error::Execute("x".into())),
+        "execute error: x"
+    );
+    assert_eq!(
+        format!("{}", Error::Protocol("x".into())),
+        "protocol error: x"
+    );
     assert_eq!(format!("{}", Error::Model("x".into())), "model error: x");
     assert_eq!(format!("{}", Error::Pool("x".into())), "pool error: x");
     assert_eq!(format!("{}", Error::Config("x".into())), "config error: x");
     assert_eq!(format!("{}", Error::NotFound("x".into())), "not found: x");
-    assert_eq!(format!("{}", Error::Transaction("x".into())), "transaction error: x");
+    assert_eq!(
+        format!("{}", Error::Transaction("x".into())),
+        "transaction error: x"
+    );
     Ok(())
 }
-
-
 
 fn case_error_debug_all_variants() -> Result<(), Error> {
     let variants = [
@@ -1570,8 +1719,6 @@ fn case_error_debug_all_variants() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_error_source_io() -> Result<(), Error> {
     use std::error::Error as StdError;
     let io_err = std::io::Error::new(std::io::ErrorKind::Other, "test");
@@ -1580,16 +1727,12 @@ fn case_error_source_io() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_error_source_none() -> Result<(), Error> {
     use std::error::Error as StdError;
     assert!(Error::NotFound("test".into()).source().is_none());
     assert!(Error::Connection("test".into()).source().is_none());
     Ok(())
 }
-
-
 
 fn case_result_type_alias() -> Result<(), Error> {
     let r: grorm::Result<i64> = Ok(42);
@@ -1600,8 +1743,6 @@ fn case_result_type_alias() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_model_trait_methods() -> Result<(), Error> {
     assert_eq!(TestUser::table_name(), "test_users");
     assert_eq!(TestUser::primary_key(), "id");
@@ -1610,58 +1751,76 @@ fn case_model_trait_methods() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_model_from_row_error() -> Result<(), Error> {
-    let values = vec![Value::String("not_an_int".into()), Value::String("x".into()), Value::String("x".into()), Value::String("x".into())];
+    let values = vec![
+        Value::String("not_an_int".into()),
+        Value::String("x".into()),
+        Value::String("x".into()),
+        Value::String("x".into()),
+    ];
     assert!(TestUser::from_row(&values).is_err());
     Ok(())
 }
 
-
-
 fn case_model_to_values_roundtrip() -> Result<(), Error> {
-    let user = TestUser { id: 42, name: "Test".into(), email: "test@test.com".into(), age: 99 };
+    let user = TestUser {
+        id: 42,
+        name: "Test".into(),
+        email: "test@test.com".into(),
+        age: 99,
+    };
     let values = user.to_values();
     let restored = TestUser::from_row(&values).unwrap();
     assert_eq!(restored, user);
     Ok(())
 }
-
-
 
 fn case_model_empty_string() -> Result<(), Error> {
-    let user = TestUser { id: 0, name: "".into(), email: "".into(), age: 0 };
+    let user = TestUser {
+        id: 0,
+        name: "".into(),
+        email: "".into(),
+        age: 0,
+    };
     let values = user.to_values();
     let restored = TestUser::from_row(&values).unwrap();
     assert_eq!(restored, user);
     Ok(())
 }
 
-
-
 fn case_model_negative_age() -> Result<(), Error> {
-    let user = TestUser { id: 0, name: "Test".into(), email: "test@test.com".into(), age: -5 };
+    let user = TestUser {
+        id: 0,
+        name: "Test".into(),
+        email: "test@test.com".into(),
+        age: -5,
+    };
     let values = user.to_values();
     let restored = TestUser::from_row(&values).unwrap();
     assert_eq!(restored.age, -5);
     Ok(())
 }
 
-
-
 fn case_model_large_id() -> Result<(), Error> {
-    let user = TestUser { id: i64::MAX, name: "Test".into(), email: "test@test.com".into(), age: 30 };
+    let user = TestUser {
+        id: i64::MAX,
+        name: "Test".into(),
+        email: "test@test.com".into(),
+        age: 30,
+    };
     let values = user.to_values();
     let restored = TestUser::from_row(&values).unwrap();
     assert_eq!(restored.id, i64::MAX);
     Ok(())
 }
 
-
-
 fn case_model_special_chars() -> Result<(), Error> {
-    let user = TestUser { id: 0, name: "O'Brien".into(), email: "test+tag@test.com".into(), age: 30 };
+    let user = TestUser {
+        id: 0,
+        name: "O'Brien".into(),
+        email: "test+tag@test.com".into(),
+        age: 30,
+    };
     let values = user.to_values();
     let restored = TestUser::from_row(&values).unwrap();
     assert_eq!(restored.name, "O'Brien");
@@ -1669,17 +1828,18 @@ fn case_model_special_chars() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_model_unicode() -> Result<(), Error> {
-    let user = TestUser { id: 0, name: "测试用户".into(), email: "test@test.com".into(), age: 30 };
+    let user = TestUser {
+        id: 0,
+        name: "测试用户".into(),
+        email: "test@test.com".into(),
+        age: 30,
+    };
     let values = user.to_values();
     let restored = TestUser::from_row(&values).unwrap();
     assert_eq!(restored.name, "测试用户");
     Ok(())
 }
-
-
 
 fn case_derive_model_attributes() -> Result<(), Error> {
     #[derive(Debug, PartialEq, DeriveModel)]
@@ -1703,8 +1863,6 @@ fn case_derive_model_attributes() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_derive_model_unique_index() -> Result<(), Error> {
     #[derive(Debug, PartialEq, DeriveModel)]
     #[table = "test_unique_idx"]
@@ -1722,20 +1880,18 @@ fn case_derive_model_unique_index() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_derive_table_macro() -> Result<(), Error> {
     use grorm::DeriveTable;
 
     #[derive(Debug, DeriveTable)]
     #[table_name = "my_custom_table"]
-    struct MyTable { id: i64 }
+    struct MyTable {
+        id: i64,
+    }
 
     assert_eq!(MyTable::table_name(), "my_custom_table");
     Ok(())
 }
-
-
 
 fn case_derive_table_default_name() -> Result<(), Error> {
     use grorm::DeriveTable;
@@ -1747,16 +1903,15 @@ fn case_derive_table_default_name() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_value_clone() -> Result<(), Error> {
-    assert_eq!(Value::String("hello".into()).clone(), Value::String("hello".into()));
+    assert_eq!(
+        Value::String("hello".into()).clone(),
+        Value::String("hello".into())
+    );
     assert_eq!(Value::I64(42).clone(), Value::I64(42));
     assert_eq!(Value::Null.clone(), Value::Null);
     Ok(())
 }
-
-
 
 fn case_value_debug() -> Result<(), Error> {
     assert!(format!("{:?}", Value::I64(42)).contains("42"));
@@ -1767,8 +1922,6 @@ fn case_value_debug() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_value_display() -> Result<(), Error> {
     assert_eq!(format!("{}", Value::I64(42)), "42");
     assert_eq!(format!("{}", Value::String("hello".into())), "'hello'");
@@ -1778,14 +1931,10 @@ fn case_value_display() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_value_default_impl() -> Result<(), Error> {
     assert_eq!(Value::Null, Value::Null);
     Ok(())
 }
-
-
 
 fn case_value_from_impls() -> Result<(), Error> {
     assert_eq!(Value::from("hello"), Value::String("hello".into()));
@@ -1797,8 +1946,6 @@ fn case_value_from_impls() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_from_sql_all_types() -> Result<(), Error> {
     use grorm::FromSql;
     assert_eq!(<i64>::from_sql(&Value::I64(42)).unwrap(), 42);
@@ -1806,11 +1953,12 @@ fn case_from_sql_all_types() -> Result<(), Error> {
     assert_eq!(<String>::from_sql(&Value::String("x".into())).unwrap(), "x");
     assert!((<f64>::from_sql(&Value::F64(3.14)).unwrap() - 3.14).abs() < 0.001);
     assert!(<bool>::from_sql(&Value::Bool(true)).unwrap());
-    assert_eq!(<Vec<u8>>::from_sql(&Value::Bytes(vec![1, 2])).unwrap(), vec![1, 2]);
+    assert_eq!(
+        <Vec<u8>>::from_sql(&Value::Bytes(vec![1, 2])).unwrap(),
+        vec![1, 2]
+    );
     Ok(())
 }
-
-
 
 fn case_to_sql_all_types() -> Result<(), Error> {
     use grorm::ToSql;
@@ -1823,15 +1971,11 @@ fn case_to_sql_all_types() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_to_sql_str_ref() -> Result<(), Error> {
     use grorm::ToSql;
     assert_eq!(ToSql::to_sql(&"hello"), Value::String("hello".into()));
     Ok(())
 }
-
-
 
 fn case_to_sql_option() -> Result<(), Error> {
     use grorm::ToSql;
@@ -1839,8 +1983,6 @@ fn case_to_sql_option() -> Result<(), Error> {
     assert_eq!(ToSql::to_sql(&None::<i64>), Value::Null);
     Ok(())
 }
-
-
 
 fn case_derive_table_no_attr() -> Result<(), Error> {
     use grorm::DeriveTable;
@@ -1852,33 +1994,36 @@ fn case_derive_table_no_attr() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_derive_model_default_table() -> Result<(), Error> {
     #[derive(Debug, PartialEq, DeriveModel)]
-    struct DefaultTable { id: i64, name: String }
+    struct DefaultTable {
+        id: i64,
+        name: String,
+    }
 
     assert_eq!(DefaultTable::table_name(), "defaulttables");
     Ok(())
 }
 
-
-
 fn case_derive_model_default_pk() -> Result<(), Error> {
     #[derive(Debug, PartialEq, DeriveModel)]
-    struct DefaultPk { id: i64, name: String }
+    struct DefaultPk {
+        id: i64,
+        name: String,
+    }
 
     assert_eq!(DefaultPk::primary_key(), "id");
     Ok(())
 }
 
-
-
 fn case_derive_model_non_int_pk() -> Result<(), Error> {
     #[derive(Debug, PartialEq, DeriveModel)]
     #[table = "test_str_pk"]
     #[primary_key = "uuid"]
-    struct StrPk { uuid: String, name: String }
+    struct StrPk {
+        uuid: String,
+        name: String,
+    }
 
     let schema = StrPk::table_schema();
     assert!(schema[0].is_primary_key);
@@ -1886,12 +2031,13 @@ fn case_derive_model_non_int_pk() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_derive_model_int_pk_auto() -> Result<(), Error> {
     #[derive(Debug, PartialEq, DeriveModel)]
     #[table = "test_int_pk"]
-    struct IntPk { id: i64, name: String }
+    struct IntPk {
+        id: i64,
+        name: String,
+    }
 
     let schema = IntPk::table_schema();
     assert!(schema[0].is_primary_key);
@@ -1899,12 +2045,14 @@ fn case_derive_model_int_pk_auto() -> Result<(), Error> {
     Ok(())
 }
 
-
-
 fn case_derive_model_no_index_no_unique() -> Result<(), Error> {
     #[derive(Debug, PartialEq, DeriveModel)]
     #[table = "test_plain"]
-    struct Plain { id: i64, name: String, email: String }
+    struct Plain {
+        id: i64,
+        name: String,
+        email: String,
+    }
 
     let schema = Plain::table_schema();
     assert_eq!(schema.len(), 3);
@@ -1926,7 +2074,9 @@ fn run_all_tests() {
     macro_rules! run {
         ($f:ident) => {
             match $f() {
-                Ok(()) => { passed += 1; }
+                Ok(()) => {
+                    passed += 1;
+                }
                 Err(e) => {
                     failed += 1;
                     errors.push((stringify!($f), e));

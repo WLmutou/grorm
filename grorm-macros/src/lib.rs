@@ -1,17 +1,19 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Data, Fields, Meta};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, Meta};
 
-#[proc_macro_derive(Model, attributes(table, column, primary_key, index, unique, unique_index))]
+#[proc_macro_derive(
+    Model,
+    attributes(table, column, primary_key, index, unique, unique_index)
+)]
 pub fn derive_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
 
-    let table_name = get_attr(&input.attrs, "table")
-        .unwrap_or_else(|| name.to_string().to_lowercase() + "s");
+    let table_name =
+        get_attr(&input.attrs, "table").unwrap_or_else(|| name.to_string().to_lowercase() + "s");
 
-    let primary_key = get_attr(&input.attrs, "primary_key")
-        .unwrap_or_else(|| "id".to_string());
+    let primary_key = get_attr(&input.attrs, "primary_key").unwrap_or_else(|| "id".to_string());
 
     let fields = match &input.data {
         Data::Struct(data) => match &data.fields {
@@ -21,7 +23,8 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
         _ => panic!("Model derive only supports structs"),
     };
 
-    let field_names: Vec<_> = fields.iter()
+    let field_names: Vec<_> = fields
+        .iter()
         .map(|f| f.ident.as_ref().unwrap().to_string())
         .collect();
 
@@ -112,10 +115,18 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
 }
 
 fn is_integer_type(ty: &str) -> bool {
-    ty == "i8" || ty == "i16" || ty == "i32" || ty == "i64"
-        || ty == "u8" || ty == "u16" || ty == "u32" || ty == "u64"
-        || ty == "isize" || ty == "usize"
-        || ty == "Id" || ty == "grorm :: Id"
+    ty == "i8"
+        || ty == "i16"
+        || ty == "i32"
+        || ty == "i64"
+        || ty == "u8"
+        || ty == "u16"
+        || ty == "u32"
+        || ty == "u64"
+        || ty == "isize"
+        || ty == "usize"
+        || ty == "Id"
+        || ty == "grorm :: Id"
 }
 
 fn has_field_attr(attrs: &[syn::Attribute], name: &str) -> bool {

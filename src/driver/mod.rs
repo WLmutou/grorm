@@ -1,12 +1,12 @@
-pub mod postgres;
-pub mod mysql;
-pub mod sqlite;
 pub mod default;
+pub mod mysql;
+pub mod postgres;
+pub mod sqlite;
 
-pub use postgres::{PostgresDriver, PostgresDriverFactory};
-pub use mysql::{MysqlDriver, MysqlDriverFactory};
-pub use sqlite::{SqliteDriver, SqliteDriverFactory};
 pub use default::{DefaultDriver, DefaultDriverFactory};
+pub use mysql::{MysqlDriver, MysqlDriverFactory};
+pub use postgres::{PostgresDriver, PostgresDriverFactory};
+pub use sqlite::{SqliteDriver, SqliteDriverFactory};
 
 use crate::error::Error;
 
@@ -22,7 +22,6 @@ pub struct ConnectionConfig {
     pub ssl_mode: SslMode,
     pub max_connections: usize,
 }
-
 
 impl Default for ConnectionConfig {
     fn default() -> Self {
@@ -91,12 +90,12 @@ impl ConnectionConfig {
             max_connections: 10,
         }
     }
-    
+
     pub fn with_ssl(mut self, mode: SslMode) -> Self {
         self.ssl_mode = mode;
         self
     }
-    
+
     pub fn with_max_connections(mut self, max: usize) -> Self {
         self.max_connections = max;
         self
@@ -141,39 +140,36 @@ impl Row {
             values: Vec::new(),
         }
     }
-    
+
     pub fn with_capacity(capacity: usize) -> Self {
         Row {
             columns: Vec::with_capacity(capacity),
             values: Vec::with_capacity(capacity),
         }
     }
-    
+
     pub fn push(&mut self, column: Column, value: Option<String>) {
         self.columns.push(column);
         self.values.push(value);
     }
-    
+
     pub fn get(&self, idx: usize) -> Option<&str> {
         self.values.get(idx).and_then(|v| v.as_deref())
     }
-    
+
     pub fn get_by_name(&self, name: &str) -> Option<&str> {
         self.columns
             .iter()
             .position(|c| c.name == name)
             .and_then(|idx| self.get(idx))
     }
-    
+
     pub fn column_count(&self) -> usize {
         self.columns.len()
     }
-    
+
     pub fn iter(&self) -> RowIter<'_> {
-        RowIter {
-            row: self,
-            idx: 0,
-        }
+        RowIter { row: self, idx: 0 }
     }
 }
 
@@ -184,7 +180,7 @@ pub struct RowIter<'a> {
 
 impl<'a> Iterator for RowIter<'a> {
     type Item = (&'a Column, Option<&'a str>);
-    
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx >= self.row.columns.len() {
             None
@@ -213,7 +209,7 @@ impl Column {
             nullable: true,
         }
     }
-    
+
     pub fn not_null(mut self) -> Self {
         self.nullable = false;
         self
@@ -313,49 +309,49 @@ impl From<f64> for Parameter {
 pub trait DatabaseDriver: Send + Sync {
     /// 驱动的数据库类型
     fn db_type(&self) -> DatabaseType;
-    
+
     /// 建立连接
     fn connect(&mut self, config: &ConnectionConfig) -> Result<(), Error>;
-    
+
     /// 关闭连接
     fn close(&mut self) -> Result<(), Error>;
-    
+
     /// 执行查询（返回结果集）
     fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Error>;
-    
+
     /// 执行命令（不返回结果集）
     fn execute(&mut self, sql: &str, params: &[Parameter]) -> Result<u64, Error>;
-    
+
     /// 准备语句
     fn prepare(&mut self, name: &str, sql: &str) -> Result<(), Error>;
-    
+
     /// 执行已准备的语句
     fn execute_prepared(&mut self, name: &str, params: &[Parameter]) -> Result<QueryResult, Error>;
-    
+
     /// 开始事务
     fn begin(&mut self) -> Result<(), Error>;
-    
+
     /// 提交事务
     fn commit(&mut self) -> Result<(), Error>;
-    
+
     /// 回滚事务
     fn rollback(&mut self) -> Result<(), Error>;
-    
+
     /// 转义标识符（表名、列名）
     fn escape_identifier(&self, ident: &str) -> String;
-    
+
     /// 获取最后插入的 ID
     fn last_insert_id(&mut self) -> Result<Option<i64>, Error>;
-    
+
     /// 连接是否有效
     fn is_connected(&self) -> bool;
-    
+
     /// 获取当前连接的版本信息
     fn version(&mut self) -> Result<String, Error>;
-    
+
     /// 分页查询的 LIMIT/OFFSET 语法
     fn limit_offset_clause(&self, limit: Option<usize>, offset: Option<usize>) -> String;
-    
+
     /// 占位符风格（$1, ?, :name, 等）
     fn placeholder_style(&self) -> PlaceholderStyle;
 }
@@ -390,7 +386,7 @@ impl DriverRegistry {
             drivers: std::collections::HashMap::new(),
         }
     }
-    
+
     pub fn register<F>(&mut self, factory: F)
     where
         F: DriverFactory + 'static,
@@ -398,11 +394,11 @@ impl DriverRegistry {
         let db_type = factory.db_type();
         self.drivers.insert(db_type, Box::new(factory));
     }
-    
+
     pub fn get(&self, db_type: DatabaseType) -> Option<&dyn DriverFactory> {
         self.drivers.get(&db_type).map(|f| f.as_ref())
     }
-    
+
     pub fn create_driver(&self, db_type: DatabaseType) -> Option<Box<dyn DatabaseDriver>> {
         self.get(db_type).map(|f| f.create())
     }

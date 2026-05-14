@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{Read, Write, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
 const SQLITE_HEADER: &[u8] = b"SQLite format 3\0";
@@ -17,14 +17,25 @@ pub enum SqliteResult {
 }
 
 enum WhereFilter {
-    Simple { col_idx: usize, operator: String, value: String },
-    In { col_idx: usize, values: Vec<String> },
+    Simple {
+        col_idx: usize,
+        operator: String,
+        value: String,
+    },
+    In {
+        col_idx: usize,
+        values: Vec<String>,
+    },
 }
 
 impl WhereFilter {
     fn matches(&self, _header: &[&str], values: &[&str]) -> bool {
         match self {
-            WhereFilter::Simple { col_idx, operator, value } => {
+            WhereFilter::Simple {
+                col_idx,
+                operator,
+                value,
+            } => {
                 if *col_idx >= values.len() {
                     return false;
                 }
@@ -39,7 +50,10 @@ impl WhereFilter {
                     _ => false,
                 }
             }
-            WhereFilter::In { col_idx, values: in_vals } => {
+            WhereFilter::In {
+                col_idx,
+                values: in_vals,
+            } => {
                 if *col_idx >= values.len() {
                     return false;
                 }
@@ -131,19 +145,27 @@ impl SqliteConnection {
     pub fn execute_query(&mut self, sql: &str) -> Result<SqliteResult, crate::error::Error> {
         let sql_upper = sql.trim().to_uppercase();
 
-        if sql_upper.starts_with("CREATE TABLE") || sql_upper.starts_with("CREATE INDEX")
-            || sql_upper.starts_with("CREATE VIEW") || sql_upper.starts_with("CREATE TRIGGER") {
+        if sql_upper.starts_with("CREATE TABLE")
+            || sql_upper.starts_with("CREATE INDEX")
+            || sql_upper.starts_with("CREATE VIEW")
+            || sql_upper.starts_with("CREATE TRIGGER")
+        {
             return self.execute_ddl(sql);
         }
 
-        if sql_upper.starts_with("INSERT") || sql_upper.starts_with("UPDATE")
-            || sql_upper.starts_with("DELETE") || sql_upper.starts_with("DROP")
-            || sql_upper.starts_with("ALTER") {
+        if sql_upper.starts_with("INSERT")
+            || sql_upper.starts_with("UPDATE")
+            || sql_upper.starts_with("DELETE")
+            || sql_upper.starts_with("DROP")
+            || sql_upper.starts_with("ALTER")
+        {
             return self.execute_dml(sql);
         }
 
-        if sql_upper.starts_with("SELECT") || sql_upper.starts_with("PRAGMA")
-            || sql_upper.starts_with("EXPLAIN") {
+        if sql_upper.starts_with("SELECT")
+            || sql_upper.starts_with("PRAGMA")
+            || sql_upper.starts_with("EXPLAIN")
+        {
             return self.execute_select(sql);
         }
 
@@ -197,14 +219,18 @@ impl SqliteConnection {
         let sql_upper = sql.trim().to_uppercase();
         if sql_upper.starts_with("SELECT") {
             if !sql_upper.contains("FROM") {
-                let col_name = sql[6..].trim()
+                let col_name = sql[6..]
+                    .trim()
                     .trim_end_matches(|c: char| c == ';')
                     .to_string();
                 let col_info = SqliteColumnInfo {
                     name: col_name.clone(),
                     data_type: "TEXT".to_string(),
                 };
-                return Ok(SqliteResult::Rows(vec![vec!["0".to_string()]], vec![col_info]));
+                return Ok(SqliteResult::Rows(
+                    vec![vec!["0".to_string()]],
+                    vec![col_info],
+                ));
             }
 
             if sql_upper.contains("COUNT(*)") || sql_upper.contains("COUNT(") {
@@ -214,7 +240,10 @@ impl SqliteConnection {
                     name: "COUNT(*)".to_string(),
                     data_type: "INTEGER".to_string(),
                 };
-                return Ok(SqliteResult::Rows(vec![vec![count.to_string()]], vec![col_info]));
+                return Ok(SqliteResult::Rows(
+                    vec![vec![count.to_string()]],
+                    vec![col_info],
+                ));
             }
 
             let table_name = self.extract_table_name_from_select(sql)?;
@@ -224,12 +253,13 @@ impl SqliteConnection {
             let col_infos: Vec<SqliteColumnInfo> = if columns.len() == 1 && columns[0] == "*" {
                 self.read_header_columns(&table_name)?
             } else {
-                columns.iter().map(|c| {
-                    SqliteColumnInfo {
+                columns
+                    .iter()
+                    .map(|c| SqliteColumnInfo {
                         name: c.clone(),
                         data_type: "TEXT".to_string(),
-                    }
-                }).collect()
+                    })
+                    .collect()
             };
 
             Ok(SqliteResult::Rows(rows, col_infos))
@@ -240,7 +270,11 @@ impl SqliteConnection {
 
     fn begin_transaction(&mut self) -> Result<(), crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
-        let prefix = self.db_path.file_stem().unwrap_or_default().to_string_lossy();
+        let prefix = self
+            .db_path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy();
 
         if let Ok(entries) = fs::read_dir(schema_dir) {
             for entry in entries {
@@ -273,11 +307,19 @@ impl SqliteConnection {
         Ok(())
     }
 
-    fn read_header_columns(&self, table_name: &str) -> Result<Vec<SqliteColumnInfo>, crate::error::Error> {
+    fn read_header_columns(
+        &self,
+        table_name: &str,
+    ) -> Result<Vec<SqliteColumnInfo>, crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
-        let data_path = schema_dir.join(format!("{}.{}.data",
-            self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
-            table_name));
+        let data_path = schema_dir.join(format!(
+            "{}.{}.data",
+            self.db_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            table_name
+        ));
 
         if !data_path.exists() {
             return Ok(Vec::new());
@@ -285,7 +327,8 @@ impl SqliteConnection {
 
         let content = fs::read_to_string(&data_path)?;
         if let Some(header_line) = content.lines().next() {
-            Ok(header_line.split('|')
+            Ok(header_line
+                .split('|')
                 .map(|c| SqliteColumnInfo {
                     name: c.trim().to_string(),
                     data_type: "TEXT".to_string(),
@@ -298,9 +341,14 @@ impl SqliteConnection {
 
     fn store_schema(&mut self, table_name: &str, sql: &str) -> Result<(), crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
-        let schema_path = schema_dir.join(format!("{}.schema", 
-            self.db_path.file_stem().unwrap_or_default().to_string_lossy()));
-        
+        let schema_path = schema_dir.join(format!(
+            "{}.schema",
+            self.db_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+        ));
+
         let mut content = if schema_path.exists() {
             fs::read_to_string(&schema_path)?
         } else {
@@ -312,10 +360,15 @@ impl SqliteConnection {
             fs::write(&schema_path, content)?;
         }
 
-        let data_path = schema_dir.join(format!("{}.{}.data",
-            self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
-            table_name));
-        
+        let data_path = schema_dir.join(format!(
+            "{}.{}.data",
+            self.db_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            table_name
+        ));
+
         if !data_path.exists() {
             fs::write(&data_path, "")?;
         }
@@ -323,11 +376,21 @@ impl SqliteConnection {
         Ok(())
     }
 
-    fn store_row(&mut self, table_name: &str, columns: &[String], values: &[String]) -> Result<(), crate::error::Error> {
+    fn store_row(
+        &mut self,
+        table_name: &str,
+        columns: &[String],
+        values: &[String],
+    ) -> Result<(), crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
-        let data_path = schema_dir.join(format!("{}.{}.data",
-            self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
-            table_name));
+        let data_path = schema_dir.join(format!(
+            "{}.{}.data",
+            self.db_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            table_name
+        ));
 
         let mut content = if data_path.exists() {
             fs::read_to_string(&data_path)?
@@ -341,7 +404,11 @@ impl SqliteConnection {
         } else {
             let mut cols = vec!["id".to_string()];
             cols.extend(columns.iter().cloned());
-            let row_count = if content.is_empty() { 0 } else { content.lines().count() };
+            let row_count = if content.is_empty() {
+                0
+            } else {
+                content.lines().count()
+            };
             let mut vals = vec![row_count.to_string()];
             vals.extend(values.iter().cloned());
             (cols, vals)
@@ -368,11 +435,21 @@ impl SqliteConnection {
         Ok(())
     }
 
-    fn read_rows(&mut self, table_name: &str, columns: &[String], sql: &str) -> Result<Vec<Vec<String>>, crate::error::Error> {
+    fn read_rows(
+        &mut self,
+        table_name: &str,
+        columns: &[String],
+        sql: &str,
+    ) -> Result<Vec<Vec<String>>, crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
-        let data_path = schema_dir.join(format!("{}.{}.data",
-            self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
-            table_name));
+        let data_path = schema_dir.join(format!(
+            "{}.{}.data",
+            self.db_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            table_name
+        ));
 
         if !data_path.exists() {
             return Ok(Vec::new());
@@ -388,7 +465,8 @@ impl SqliteConnection {
         let col_indices: Vec<usize> = if columns.len() == 1 && columns[0] == "*" {
             (0..header.len()).collect()
         } else {
-            columns.iter()
+            columns
+                .iter()
                 .filter_map(|c| header.iter().position(|h| h.trim() == c.trim()))
                 .collect()
         };
@@ -397,7 +475,9 @@ impl SqliteConnection {
 
         let mut rows = Vec::new();
         for line in &lines[1..] {
-            if line.is_empty() { continue; }
+            if line.is_empty() {
+                continue;
+            }
             let values: Vec<&str> = line.split('|').collect();
 
             if !where_filters.is_empty() {
@@ -431,7 +511,8 @@ impl SqliteConnection {
             let rest = &sql[where_pos + 5..].trim();
             let rest_upper = &sql_upper[where_pos + 5..].trim();
 
-            let cond_end = rest_upper.find("ORDER")
+            let cond_end = rest_upper
+                .find("ORDER")
                 .or_else(|| rest_upper.find("LIMIT"))
                 .unwrap_or(rest.len());
             let where_part = &rest[..cond_end].trim();
@@ -440,7 +521,9 @@ impl SqliteConnection {
 
             for part in parts.iter() {
                 let part = part.trim();
-                if part.is_empty() { continue; }
+                if part.is_empty() {
+                    continue;
+                }
                 if let Some(filter) = self.parse_condition(part, header) {
                     filters.push(filter);
                 }
@@ -455,13 +538,20 @@ impl SqliteConnection {
         let cond_upper = cond.to_uppercase();
 
         if let Some(in_pos) = cond_upper.find("IN") {
-            let col_name = cond[..in_pos].trim().trim_matches(|c: char| c == '"' || c == '`' || c == '\'');
+            let col_name = cond[..in_pos]
+                .trim()
+                .trim_matches(|c: char| c == '"' || c == '`' || c == '\'');
             let after_in = &cond[in_pos + 2..].trim();
             let paren_start = after_in.find('(')?;
             let paren_end = after_in.rfind(')')?;
             let values_str = &after_in[paren_start + 1..paren_end];
-            let values: Vec<String> = values_str.split(',')
-                .map(|v| v.trim().trim_matches(|c: char| c == '\'' || c == '"').to_string())
+            let values: Vec<String> = values_str
+                .split(',')
+                .map(|v| {
+                    v.trim()
+                        .trim_matches(|c: char| c == '\'' || c == '"')
+                        .to_string()
+                })
                 .collect();
             if let Some(col_idx) = header.iter().position(|h| *h == col_name) {
                 return Some(WhereFilter::In { col_idx, values });
@@ -471,8 +561,12 @@ impl SqliteConnection {
         let operators = ["!=", "<>", ">=", "<=", "=", ">", "<"];
         for op in &operators {
             if let Some(pos) = cond.find(op) {
-                let col_name = cond[..pos].trim().trim_matches(|c: char| c == '"' || c == '`' || c == '\'');
-                let value = cond[pos + op.len()..].trim().trim_matches(|c: char| c == '"' || c == '\'');
+                let col_name = cond[..pos]
+                    .trim()
+                    .trim_matches(|c: char| c == '"' || c == '`' || c == '\'');
+                let value = cond[pos + op.len()..]
+                    .trim()
+                    .trim_matches(|c: char| c == '"' || c == '\'');
                 if let Some(col_idx) = header.iter().position(|h| *h == col_name) {
                     return Some(WhereFilter::Simple {
                         col_idx,
@@ -487,9 +581,14 @@ impl SqliteConnection {
 
     pub fn count_rows(&self, table_name: &str) -> Result<usize, crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
-        let data_path = schema_dir.join(format!("{}.{}.data",
-            self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
-            table_name));
+        let data_path = schema_dir.join(format!(
+            "{}.{}.data",
+            self.db_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            table_name
+        ));
 
         if !data_path.exists() {
             return Ok(0);
@@ -506,9 +605,14 @@ impl SqliteConnection {
 
     fn delete_rows(&mut self, table_name: &str, sql: &str) -> Result<usize, crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
-        let data_path = schema_dir.join(format!("{}.{}.data",
-            self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
-            table_name));
+        let data_path = schema_dir.join(format!(
+            "{}.{}.data",
+            self.db_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            table_name
+        ));
 
         if !data_path.exists() {
             return Ok(0);
@@ -527,7 +631,9 @@ impl SqliteConnection {
         let mut new_content = format!("{}\n", lines[0]);
 
         for line in &lines[1..] {
-            if line.is_empty() { continue; }
+            if line.is_empty() {
+                continue;
+            }
             let values: Vec<&str> = line.split('|').collect();
 
             let should_delete = if where_filters.is_empty() {
@@ -554,14 +660,16 @@ impl SqliteConnection {
             let rest = &sql[pos + 13..].trim();
             if rest.starts_with("IF NOT EXISTS") {
                 let rest = rest[14..].trim();
-                let name = rest.split(|c: char| c.is_whitespace() || c == '(')
+                let name = rest
+                    .split(|c: char| c.is_whitespace() || c == '(')
                     .next()
                     .unwrap_or("unknown")
                     .trim_matches(|c: char| c == '"' || c == '`' || c == '\'')
                     .to_string();
                 return Ok(name);
             }
-            let name = rest.split(|c: char| c.is_whitespace() || c == '(')
+            let name = rest
+                .split(|c: char| c.is_whitespace() || c == '(')
                 .next()
                 .unwrap_or("unknown")
                 .trim_matches(|c: char| c == '"' || c == '`' || c == '\'')
@@ -575,7 +683,8 @@ impl SqliteConnection {
         let sql_upper = sql.to_uppercase();
         if let Some(pos) = sql_upper.find("INTO") {
             let rest = &sql[pos + 4..].trim();
-            let name = rest.split(|c: char| c.is_whitespace() || c == '(')
+            let name = rest
+                .split(|c: char| c.is_whitespace() || c == '(')
                 .next()
                 .unwrap_or("unknown")
                 .trim_matches(|c: char| c == '"' || c == '`' || c == '\'')
@@ -589,7 +698,8 @@ impl SqliteConnection {
         let sql_upper = sql.to_uppercase();
         if let Some(pos) = sql_upper.find("FROM") {
             let rest = &sql[pos + 4..].trim();
-            let name = rest.split(|c: char| c.is_whitespace() || c == ';')
+            let name = rest
+                .split(|c: char| c.is_whitespace() || c == ';')
                 .next()
                 .unwrap_or("unknown")
                 .trim_matches(|c: char| c == '"' || c == '`' || c == '\'')
@@ -603,7 +713,8 @@ impl SqliteConnection {
         let sql_upper = sql.to_uppercase();
         if let Some(pos) = sql_upper.find("UPDATE") {
             let rest = &sql[pos + 6..].trim();
-            let name = rest.split(|c: char| c.is_whitespace())
+            let name = rest
+                .split(|c: char| c.is_whitespace())
                 .next()
                 .unwrap_or("unknown")
                 .trim_matches(|c: char| c == '"' || c == '`' || c == '\'')
@@ -615,9 +726,14 @@ impl SqliteConnection {
 
     fn update_rows(&mut self, table_name: &str, sql: &str) -> Result<usize, crate::error::Error> {
         let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
-        let data_path = schema_dir.join(format!("{}.{}.data",
-            self.db_path.file_stem().unwrap_or_default().to_string_lossy(),
-            table_name));
+        let data_path = schema_dir.join(format!(
+            "{}.{}.data",
+            self.db_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            table_name
+        ));
 
         if !data_path.exists() {
             return Ok(0);
@@ -637,7 +753,9 @@ impl SqliteConnection {
         let mut new_content = format!("{}\n", lines[0]);
 
         for line in &lines[1..] {
-            if line.is_empty() { continue; }
+            if line.is_empty() {
+                continue;
+            }
             let values: Vec<&str> = line.split('|').collect();
 
             let should_update = if where_filters.is_empty() {
@@ -672,7 +790,8 @@ impl SqliteConnection {
 
         if let Some(set_pos) = sql_upper.find("SET") {
             let after_set = &sql[set_pos + 3..].trim();
-            let set_end = after_set.find("WHERE")
+            let set_end = after_set
+                .find("WHERE")
                 .or_else(|| after_set.find("ORDER"))
                 .or_else(|| after_set.find("LIMIT"))
                 .unwrap_or(after_set.len());
@@ -681,8 +800,12 @@ impl SqliteConnection {
             for part in set_part.split(',') {
                 let part = part.trim();
                 if let Some(eq_pos) = part.find('=') {
-                    let col_name = part[..eq_pos].trim().trim_matches(|c: char| c == '"' || c == '`' || c == '\'');
-                    let value = part[eq_pos + 1..].trim().trim_matches(|c: char| c == '"' || c == '\'');
+                    let col_name = part[..eq_pos]
+                        .trim()
+                        .trim_matches(|c: char| c == '"' || c == '`' || c == '\'');
+                    let value = part[eq_pos + 1..]
+                        .trim()
+                        .trim_matches(|c: char| c == '"' || c == '\'');
                     if let Some(col_idx) = header.iter().position(|h| *h == col_name) {
                         pairs.push((col_idx, value.to_string()));
                     }
@@ -697,7 +820,8 @@ impl SqliteConnection {
         let sql_upper = sql.to_uppercase();
         if let Some(pos) = sql_upper.find("FROM") {
             let rest = &sql[pos + 4..].trim();
-            let name = rest.split(|c: char| c.is_whitespace() || c == ';' || c == ',')
+            let name = rest
+                .split(|c: char| c.is_whitespace() || c == ';' || c == ',')
                 .next()
                 .unwrap_or("unknown")
                 .trim_matches(|c: char| c == '"' || c == '`' || c == '\'')
@@ -711,8 +835,13 @@ impl SqliteConnection {
         if let Some(start) = sql.find('(') {
             if let Some(end) = sql[start..].find(')') {
                 let cols_str = &sql[start + 1..start + end];
-                let cols: Vec<String> = cols_str.split(',')
-                    .map(|c| c.trim().trim_matches(|ch: char| ch == '"' || ch == '`' || ch == '\'').to_string())
+                let cols: Vec<String> = cols_str
+                    .split(',')
+                    .map(|c| {
+                        c.trim()
+                            .trim_matches(|ch: char| ch == '"' || ch == '`' || ch == '\'')
+                            .to_string()
+                    })
                     .collect();
                 return Ok(cols);
             }
@@ -727,7 +856,8 @@ impl SqliteConnection {
             if let Some(start) = rest.find('(') {
                 if let Some(end) = rest[start..].find(')') {
                     let vals_str = &rest[start + 1..start + end];
-                    let vals: Vec<String> = vals_str.split(',')
+                    let vals: Vec<String> = vals_str
+                        .split(',')
                         .map(|v| v.trim().trim_matches('\'').to_string())
                         .collect();
                     return Ok(vals);
@@ -745,7 +875,8 @@ impl SqliteConnection {
                 if *cols_str == "*" {
                     return Ok(vec!["*".to_string()]);
                 }
-                let cols: Vec<String> = cols_str.split(',')
+                let cols: Vec<String> = cols_str
+                    .split(',')
                     .map(|c| {
                         let c = c.trim();
                         if let Some(as_pos) = c.to_uppercase().rfind(" AS ") {

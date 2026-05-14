@@ -41,13 +41,20 @@ impl InsertBuilder {
         }
 
         if !self.values.is_empty() {
-            let value_groups: Vec<String> = self.values.iter().map(|row| {
-                let placeholders: Vec<String> = row.iter().map(|v| {
-                    params.push(v.clone());
-                    "?".to_string()
-                }).collect();
-                format!("({})", placeholders.join(", "))
-            }).collect();
+            let value_groups: Vec<String> = self
+                .values
+                .iter()
+                .map(|row| {
+                    let placeholders: Vec<String> = row
+                        .iter()
+                        .map(|v| {
+                            params.push(v.clone());
+                            "?".to_string()
+                        })
+                        .collect();
+                    format!("({})", placeholders.join(", "))
+                })
+                .collect();
             sql.push_str(&format!(" VALUES {}", value_groups.join(", ")));
         }
 

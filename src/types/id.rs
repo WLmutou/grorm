@@ -43,7 +43,10 @@ impl ToSql for Id {
 
 impl FromSql for Id {
     fn from_sql(value: &Value) -> Result<Self, String> {
-        value.as_i64().map(Id).ok_or_else(|| format!("cannot convert {:?} to Id", value))
+        value
+            .as_i64()
+            .map(Id)
+            .ok_or_else(|| format!("cannot convert {:?} to Id", value))
     }
 }
 

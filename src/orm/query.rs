@@ -1,7 +1,7 @@
 use crate::driver::{DatabaseDriver, DatabaseType, Parameter, Row};
+use crate::error::Error;
 use crate::orm::model::Model;
 use crate::types::Value;
-use crate::error::Error;
 
 /// SQL JOIN type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,7 +105,8 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
     /// qb.where_eq("name", Value::from("Alice")).find()?;
     /// ```
     pub fn where_eq(&mut self, column: &str, value: Value) -> &mut Self {
-        self.conditions.push((format!("{} = ?", column), vec![value_to_param(&value)]));
+        self.conditions
+            .push((format!("{} = ?", column), vec![value_to_param(&value)]));
         self
     }
 
@@ -121,7 +122,8 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         let columns = M::columns();
         for (i, col) in columns.iter().enumerate() {
             if !is_value_default(&values[i]) {
-                self.conditions.push((format!("{} = ?", col), vec![value_to_param(&values[i])]));
+                self.conditions
+                    .push((format!("{} = ?", col), vec![value_to_param(&values[i])]));
             }
         }
         self
@@ -250,9 +252,17 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         let params = self.flatten_conditions(&mut sql);
 
         if !self.order_by.is_empty() {
-            let orders: Vec<String> = self.order_by.iter().map(|(col, asc)| {
-                if *asc { format!("{} ASC", col) } else { format!("{} DESC", col) }
-            }).collect();
+            let orders: Vec<String> = self
+                .order_by
+                .iter()
+                .map(|(col, asc)| {
+                    if *asc {
+                        format!("{} ASC", col)
+                    } else {
+                        format!("{} DESC", col)
+                    }
+                })
+                .collect();
             sql.push_str(&format!(" ORDER BY {}", orders.join(", ")));
         }
 
@@ -343,7 +353,8 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
             }
         }
 
-        let mut unique_groups: std::collections::BTreeMap<&str, Vec<&str>> = std::collections::BTreeMap::new();
+        let mut unique_groups: std::collections::BTreeMap<&str, Vec<&str>> =
+            std::collections::BTreeMap::new();
         for col in schema {
             if let Some(idx_name) = col.unique_index_name {
                 unique_groups.entry(idx_name).or_default().push(col.name);
@@ -358,7 +369,9 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
             };
             let uniq_sql = format!(
                 "CREATE UNIQUE INDEX IF NOT EXISTS {} ON {} ({})",
-                uniq_name, table, cols.join(", ")
+                uniq_name,
+                table,
+                cols.join(", ")
             );
             self.driver.execute(&uniq_sql, &[])?;
         }
@@ -368,7 +381,11 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
 
     /// Finds a single row by its primary key value.
     pub fn find_by_id(&mut self, id: i64) -> Result<Option<M>, Error> {
-        let sql = format!("SELECT * FROM {} WHERE {} = ?", M::table_name(), M::primary_key());
+        let sql = format!(
+            "SELECT * FROM {} WHERE {} = ?",
+            M::table_name(),
+            M::primary_key()
+        );
         let params = vec![Parameter::Int(id)];
         let result = self.driver.query(&sql, &params)?;
         if result.rows.is_empty() {
@@ -396,17 +413,23 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         let pk = M::primary_key();
 
         let pk_idx = columns.iter().position(|&c| c == pk);
-        let is_auto_increment = pk_idx.map(|i| {
-            matches!(&values[i], Value::I64(0) | Value::I32(0) | Value::Null)
-        }).unwrap_or(false);
+        let is_auto_increment = pk_idx
+            .map(|i| matches!(&values[i], Value::I64(0) | Value::I32(0) | Value::Null))
+            .unwrap_or(false);
 
         let (cols, vals): (Vec<&str>, Vec<&Value>) = if is_auto_increment {
-            columns.iter().enumerate()
+            columns
+                .iter()
+                .enumerate()
                 .filter(|(i, _)| Some(*i) != pk_idx)
                 .map(|(_, &c)| c)
-                .zip(values.iter().enumerate()
-                    .filter(|(i, _)| Some(*i) != pk_idx)
-                    .map(|(_, v)| v))
+                .zip(
+                    values
+                        .iter()
+                        .enumerate()
+                        .filter(|(i, _)| Some(*i) != pk_idx)
+                        .map(|(_, v)| v),
+                )
                 .unzip()
         } else {
             (columns.to_vec(), values.iter().collect())
@@ -455,7 +478,9 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         let values = model.to_values();
         let columns = M::columns();
 
-        let set_clauses: Vec<String> = columns.iter().enumerate()
+        let set_clauses: Vec<String> = columns
+            .iter()
+            .enumerate()
             .filter(|(i, _)| !is_value_default(&values[*i]))
             .map(|(_, col)| format!("{} = ?", col))
             .collect();
@@ -476,7 +501,9 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
             where_clause,
         );
 
-        let mut set_params: Vec<Parameter> = columns.iter().enumerate()
+        let mut set_params: Vec<Parameter> = columns
+            .iter()
+            .enumerate()
             .filter(|(i, _)| !is_value_default(&values[*i]))
             .map(|(i, _)| value_to_param(&values[i]))
             .collect();
@@ -602,9 +629,6 @@ fn is_value_default(value: &Value) -> bool {
     }
 }
 
-
-
-
 // fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool) -> &'static str {
 //     match rust_type {
 //         "bool" => "BOOLEAN",
@@ -646,7 +670,6 @@ fn is_value_default(value: &Value) -> bool {
 //     }
 // }
 
-
 fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool) -> &'static str {
     let normalized = rust_type
         .trim()
@@ -654,11 +677,11 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
         .next()
         .unwrap_or(rust_type)
         .to_lowercase();
-    
+
     match normalized.as_str() {
         // ========== 布尔类型 ==========
         "bool" => "BOOLEAN",
-        
+
         // ========== 整数类型 ==========
         "i8" => match db_type {
             DatabaseType::Postgresql => "SMALLINT",
@@ -673,20 +696,20 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::None => panic!("Unsupported database type"),
         },
         "i32" => match db_type {
-            DatabaseType::Postgresql =>  {
+            DatabaseType::Postgresql => {
                 if auto_increment {
-                     "SERIAL"
+                    "SERIAL"
                 } else {
                     "INTEGER"
                 }
-            },
+            }
             DatabaseType::Mysql => {
                 if auto_increment {
                     "BIGINT"
                 } else {
                     "INT"
                 }
-            },
+            }
             DatabaseType::Sqlite => "INTEGER",
             DatabaseType::None => panic!("Unsupported database type"),
         },
@@ -697,7 +720,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
                 } else {
                     "BIGINT"
                 }
-            },
+            }
             DatabaseType::Mysql => "BIGINT",
             DatabaseType::Sqlite => "INTEGER",
             DatabaseType::None => panic!("Unsupported database type"),
@@ -709,14 +732,14 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
                 } else {
                     "BIGINT"
                 }
-            },
+            }
             DatabaseType::Mysql => {
                 if auto_increment {
                     "BIGINT AUTO_INCREMENT"
                 } else {
                     "BIGINT"
                 }
-            },
+            }
             DatabaseType::Sqlite => "INTEGER",
             DatabaseType::None => panic!("Unsupported database type"),
         },
@@ -732,7 +755,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "INTEGER",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // 无符号整数
         "u8" => match db_type {
             DatabaseType::Postgresql => "SMALLINT",
@@ -770,7 +793,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "INTEGER",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // ========== 浮点类型 ==========
         "f32" => match db_type {
             DatabaseType::Postgresql => "REAL",
@@ -784,7 +807,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "REAL",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // ========== 字符串类型 ==========
         "string" => match db_type {
             DatabaseType::Postgresql => "VARCHAR(255)",
@@ -798,7 +821,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // ========== 文本类型 ==========
         "text" => match db_type {
             DatabaseType::Postgresql => "TEXT",
@@ -812,15 +835,16 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // ========== JSON 类型 ==========
-        "json" | "jsonb" | "serde_json::value" | "value" | "serde_json::map" | "serde_json::number" => match db_type {
+        "json" | "jsonb" | "serde_json::value" | "value" | "serde_json::map"
+        | "serde_json::number" => match db_type {
             DatabaseType::Postgresql => "JSONB",
             DatabaseType::Mysql => "JSON",
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // ========== 日期时间类型 ==========
         // NaiveDate (只有日期)
         "chrono::naivedate" | "naivedate" | "date" => match db_type {
@@ -829,7 +853,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // NaiveTime (只有时间)
         "chrono::naivetime" | "naivetime" | "time" => match db_type {
             DatabaseType::Postgresql => "TIME",
@@ -837,7 +861,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // NaiveDateTime (无时区)
         "chrono::naivedatetime" | "naivedatetime" => match db_type {
             DatabaseType::Postgresql => "TIMESTAMP",
@@ -845,7 +869,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // DateTime (有时区)
         "chrono::datetime" | "datetime" => match db_type {
             DatabaseType::Postgresql => "TIMESTAMPTZ",
@@ -871,7 +895,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // Duration
         "chrono::duration" | "duration" => match db_type {
             DatabaseType::Postgresql => "INTERVAL",
@@ -879,7 +903,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "INTEGER",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // ========== UUID ==========
         "uuid" | "uuid::uuid" => match db_type {
             DatabaseType::Postgresql => "UUID",
@@ -887,7 +911,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // ========== 二进制数据 ==========
         "vec<u8>" | "bytes" | "bytearray" | "&[u8]" => match db_type {
             DatabaseType::Postgresql => "BYTEA",
@@ -901,7 +925,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "INTEGER",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // ========== 数组类型 ==========
         vec if vec.starts_with("vec<") || vec.starts_with("array<") => {
             // let inner_type = &rust_type[rust_type.find('<').unwrap() + 1..rust_type.rfind('>').unwrap()];
@@ -912,7 +936,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
                 DatabaseType::None => panic!("Unsupported database type"),
             }
         }
-        
+
         // ========== 集合类型 ==========
         "hashmap" | "hashmap<" => match db_type {
             DatabaseType::Postgresql => "JSONB",
@@ -938,13 +962,14 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // ========== Option 类型 ==========
         "option" | "option<" => {
-            let inner_type = &rust_type[rust_type.find('<').unwrap() + 1..rust_type.rfind('>').unwrap()];
+            let inner_type =
+                &rust_type[rust_type.find('<').unwrap() + 1..rust_type.rfind('>').unwrap()];
             rust_to_sql_type(inner_type, db_type, auto_increment)
         }
-        
+
         // ========== 网络类型 ==========
         "std::net::ipaddr" | "ipaddr" | "std::net::ipv4addr" | "ipv4addr" => match db_type {
             DatabaseType::Postgresql => "INET",
@@ -964,7 +989,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // ========== 其他常见类型 ==========
         "decimal" | "rust_decimal::decimal" => match db_type {
             DatabaseType::Postgresql => "DECIMAL(10,2)",
@@ -978,11 +1003,11 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
             DatabaseType::Sqlite => "TEXT",
             DatabaseType::None => panic!("Unsupported database type"),
         },
-        
+
         // 枚举类型
-        _e if !normalized.contains("::") && 
-             normalized.chars().next().unwrap_or('a').is_uppercase() &&
-             !matches!(normalized.as_str(), "string" | "text" | "json" | "uuid") =>
+        _e if !normalized.contains("::")
+            && normalized.chars().next().unwrap_or('a').is_uppercase()
+            && !matches!(normalized.as_str(), "string" | "text" | "json" | "uuid") =>
         {
             match db_type {
                 DatabaseType::Postgresql => "VARCHAR(50)",
@@ -991,7 +1016,7 @@ fn rust_to_sql_type(rust_type: &str, db_type: DatabaseType, auto_increment: bool
                 DatabaseType::None => panic!("Unsupported database type"),
             }
         }
-        
+
         // ========== 默认 ==========
         _ => "TEXT",
     }

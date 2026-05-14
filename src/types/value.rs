@@ -133,27 +133,39 @@ impl std::fmt::Display for Value {
 }
 
 impl From<bool> for Value {
-    fn from(v: bool) -> Self { Value::Bool(v) }
+    fn from(v: bool) -> Self {
+        Value::Bool(v)
+    }
 }
 
 impl From<i32> for Value {
-    fn from(v: i32) -> Self { Value::I32(v) }
+    fn from(v: i32) -> Self {
+        Value::I32(v)
+    }
 }
 
 impl From<i64> for Value {
-    fn from(v: i64) -> Self { Value::I64(v) }
+    fn from(v: i64) -> Self {
+        Value::I64(v)
+    }
 }
 
 impl From<f64> for Value {
-    fn from(v: f64) -> Self { Value::F64(v) }
+    fn from(v: f64) -> Self {
+        Value::F64(v)
+    }
 }
 
 impl From<&str> for Value {
-    fn from(v: &str) -> Self { Value::String(v.to_string()) }
+    fn from(v: &str) -> Self {
+        Value::String(v.to_string())
+    }
 }
 
 impl From<String> for Value {
-    fn from(v: String) -> Self { Value::String(v) }
+    fn from(v: String) -> Self {
+        Value::String(v)
+    }
 }
 
 impl<T: Into<Value>> From<Option<T>> for Value {
@@ -166,5 +178,7 @@ impl<T: Into<Value>> From<Option<T>> for Value {
 }
 
 impl From<Vec<u8>> for Value {
-    fn from(v: Vec<u8>) -> Self { Value::Bytes(v) }
+    fn from(v: Vec<u8>) -> Self {
+        Value::Bytes(v)
+    }
 }

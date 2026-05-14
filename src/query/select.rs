@@ -31,44 +31,58 @@ impl SelectBuilder {
     }
 
     pub fn where_eq(mut self, column: &str, value: Value) -> Self {
-        self.conditions.push((column.to_string(), "=".to_string(), value));
+        self.conditions
+            .push((column.to_string(), "=".to_string(), value));
         self
     }
 
     pub fn where_ne(mut self, column: &str, value: Value) -> Self {
-        self.conditions.push((column.to_string(), "!=".to_string(), value));
+        self.conditions
+            .push((column.to_string(), "!=".to_string(), value));
         self
     }
 
     pub fn where_gt(mut self, column: &str, value: Value) -> Self {
-        self.conditions.push((column.to_string(), ">".to_string(), value));
+        self.conditions
+            .push((column.to_string(), ">".to_string(), value));
         self
     }
 
     pub fn where_lt(mut self, column: &str, value: Value) -> Self {
-        self.conditions.push((column.to_string(), "<".to_string(), value));
+        self.conditions
+            .push((column.to_string(), "<".to_string(), value));
         self
     }
 
     pub fn where_like(mut self, column: &str, value: Value) -> Self {
-        self.conditions.push((column.to_string(), "LIKE".to_string(), value));
+        self.conditions
+            .push((column.to_string(), "LIKE".to_string(), value));
         self
     }
 
     pub fn where_in(mut self, column: &str, values: Vec<Value>) -> Self {
         let in_vals: Vec<String> = values.iter().map(|v| v.to_string()).collect();
         let val_str = format!("({})", in_vals.join(", "));
-        self.conditions.push((column.to_string(), "IN".to_string(), Value::String(val_str)));
+        self.conditions
+            .push((column.to_string(), "IN".to_string(), Value::String(val_str)));
         self
     }
 
     pub fn where_null(mut self, column: &str) -> Self {
-        self.conditions.push((column.to_string(), "IS".to_string(), Value::String("NULL".to_string())));
+        self.conditions.push((
+            column.to_string(),
+            "IS".to_string(),
+            Value::String("NULL".to_string()),
+        ));
         self
     }
 
     pub fn where_not_null(mut self, column: &str) -> Self {
-        self.conditions.push((column.to_string(), "IS NOT".to_string(), Value::String("NULL".to_string())));
+        self.conditions.push((
+            column.to_string(),
+            "IS NOT".to_string(),
+            Value::String("NULL".to_string()),
+        ));
         self
     }
 
@@ -116,14 +130,18 @@ impl SelectBuilder {
         }
 
         if !self.conditions.is_empty() {
-            let clauses: Vec<String> = self.conditions.iter().map(|(col, op, val)| {
-                if *op == "IN" || *op == "IS" || *op == "IS NOT" {
-                    format!("{} {} {}", col, op, val)
-                } else {
-                    params.push(val.clone());
-                    format!("{} {} ?", col, op)
-                }
-            }).collect();
+            let clauses: Vec<String> = self
+                .conditions
+                .iter()
+                .map(|(col, op, val)| {
+                    if *op == "IN" || *op == "IS" || *op == "IS NOT" {
+                        format!("{} {} {}", col, op, val)
+                    } else {
+                        params.push(val.clone());
+                        format!("{} {} ?", col, op)
+                    }
+                })
+                .collect();
             sql.push_str(&format!(" WHERE {}", clauses.join(" AND ")));
         }
 
@@ -132,9 +150,17 @@ impl SelectBuilder {
         }
 
         if !self.order_by.is_empty() {
-            let orders: Vec<String> = self.order_by.iter().map(|(col, asc)| {
-                if *asc { format!("{} ASC", col) } else { format!("{} DESC", col) }
-            }).collect();
+            let orders: Vec<String> = self
+                .order_by
+                .iter()
+                .map(|(col, asc)| {
+                    if *asc {
+                        format!("{} ASC", col)
+                    } else {
+                        format!("{} DESC", col)
+                    }
+                })
+                .collect();
             sql.push_str(&format!(" ORDER BY {}", orders.join(", ")));
         }
 

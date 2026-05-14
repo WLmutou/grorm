@@ -18,11 +18,13 @@ impl PostgresDriver {
             prepared_statements: std::collections::HashMap::new(),
         }
     }
-    
+
     fn get_conn(&mut self) -> Result<&mut PgConnection, Error> {
-        self.conn.as_mut().ok_or_else(|| Error::Connection("not connected".into()))
+        self.conn
+            .as_mut()
+            .ok_or_else(|| Error::Connection("not connected".into()))
     }
-    
+
     #[allow(dead_code)]
     fn build_connection_string(&self, config: &ConnectionConfig) -> String {
         format!(
@@ -36,24 +38,29 @@ impl DatabaseDriver for PostgresDriver {
     fn db_type(&self) -> DatabaseType {
         DatabaseType::Postgresql
     }
-    
+
     fn connect(&mut self, config: &ConnectionConfig) -> Result<(), Error> {
         let addr_str = format!("{}:{}", config.host, config.port);
-        let addr = addr_str.to_socket_addrs()?.next().ok_or("Failed to resolve address")?;
-        
-        let conn = PgConnection::connect(addr, &config.username, &config.password, &config.database)?;
+        let addr = addr_str
+            .to_socket_addrs()?
+            .next()
+            .ok_or("Failed to resolve address")?;
+
+        let conn =
+            PgConnection::connect(addr, &config.username, &config.password, &config.database)?;
         self.conn = Some(conn);
         self.config = Some(config.clone());
         Ok(())
     }
-    
+
     fn close(&mut self) -> Result<(), Error> {
         self.conn = None;
         Ok(())
     }
-    
+
     fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Error> {
-        let param_strs: Vec<String> = params.iter()
+        let param_strs: Vec<String> = params
+            .iter()
             .map(|p| p.as_sql_string(self.db_type()))
             .collect();
 
@@ -61,7 +68,7 @@ impl DatabaseDriver for PostgresDriver {
         for val in param_strs.iter() {
             final_sql = final_sql.replacen("?", val, 1);
         }
-        
+
         match self.get_conn()?.execute_query(&final_sql)? {
             PgResult::Rows(row_data, columns_info) => {
                 let mut query_result = QueryResult {
@@ -69,19 +76,23 @@ impl DatabaseDriver for PostgresDriver {
                     affected_rows: 0,
                     last_insert_id: None,
                 };
-                
+
                 for row_values in row_data {
                     let mut row = Row::with_capacity(columns_info.len());
                     for (idx, value) in row_values.iter().enumerate() {
                         let col_info = &columns_info[idx];
                         let data_type = Self::pg_type_to_data_type(col_info.data_type);
                         let column = Column::new(&col_info.name, data_type);
-                        let val = if value == "NULL" { None } else { Some(value.clone()) };
+                        let val = if value == "NULL" {
+                            None
+                        } else {
+                            Some(value.clone())
+                        };
                         row.push(column, val);
                     }
                     query_result.rows.push(row);
                 }
-                
+
                 Ok(query_result)
             }
             PgResult::CommandComplete(cmd) => {
@@ -92,34 +103,34 @@ impl DatabaseDriver for PostgresDriver {
                     last_insert_id: None,
                 })
             }
-            PgResult::Empty => {
-                Ok(QueryResult {
-                    rows: Vec::new(),
-                    affected_rows: 0,
-                    last_insert_id: None,
-                })
-            }
+            PgResult::Empty => Ok(QueryResult {
+                rows: Vec::new(),
+                affected_rows: 0,
+                last_insert_id: None,
+            }),
         }
     }
-    
+
     fn execute(&mut self, sql: &str, params: &[Parameter]) -> Result<u64, Error> {
         let result = self.query(sql, params)?;
         Ok(result.affected_rows)
     }
-    
+
     fn prepare(&mut self, name: &str, sql: &str) -> Result<(), Error> {
         self.get_conn()?.prepare(name, sql)?;
-        self.prepared_statements.insert(name.to_string(), sql.to_string());
+        self.prepared_statements
+            .insert(name.to_string(), sql.to_string());
         Ok(())
     }
-    
+
     fn execute_prepared(&mut self, name: &str, params: &[Parameter]) -> Result<QueryResult, Error> {
-        let param_strs: Vec<String> = params.iter()
+        let param_strs: Vec<String> = params
+            .iter()
             .map(|p| p.as_sql_string(self.db_type()))
             .collect();
-        
+
         let param_refs: Vec<&str> = param_strs.iter().map(|s| s.as_str()).collect();
-        
+
         match self.get_conn()?.execute_prepared(name, &param_refs)? {
             PgResult::Rows(row_data, columns_info) => {
                 let mut rows = Vec::new();
@@ -129,7 +140,11 @@ impl DatabaseDriver for PostgresDriver {
                         let col_info = &columns_info[idx];
                         let data_type = Self::pg_type_to_data_type(col_info.data_type);
                         let column = Column::new(&col_info.name, data_type);
-                        let val = if value == "NULL" { None } else { Some(value.clone()) };
+                        let val = if value == "NULL" {
+                            None
+                        } else {
+                            Some(value.clone())
+                        };
                         row.push(column, val);
                     }
                     rows.push(row);
@@ -147,26 +162,26 @@ impl DatabaseDriver for PostgresDriver {
             }),
         }
     }
-    
+
     fn begin(&mut self) -> Result<(), Error> {
         self.get_conn()?.execute_query("BEGIN")?;
         Ok(())
     }
-    
+
     fn commit(&mut self) -> Result<(), Error> {
         self.get_conn()?.execute_query("COMMIT")?;
         Ok(())
     }
-    
+
     fn rollback(&mut self) -> Result<(), Error> {
         self.get_conn()?.execute_query("ROLLBACK")?;
         Ok(())
     }
-    
+
     fn escape_identifier(&self, ident: &str) -> String {
         format!("\"{}\"", ident.replace('"', "\"\""))
     }
-    
+
     fn last_insert_id(&mut self) -> Result<Option<i64>, Error> {
         // PostgreSQL uses RETURNING clause, so last_insert_id might not be directly available
         // This is a fallback using currval
@@ -178,11 +193,11 @@ impl DatabaseDriver for PostgresDriver {
         }
         Ok(None)
     }
-    
+
     fn is_connected(&self) -> bool {
         self.conn.is_some()
     }
-    
+
     fn version(&mut self) -> Result<String, Error> {
         let result = self.query("SELECT version()", &[])?;
         if let Some(row) = result.rows.first() {
@@ -192,7 +207,7 @@ impl DatabaseDriver for PostgresDriver {
         }
         Ok("Unknown".to_string())
     }
-    
+
     fn limit_offset_clause(&self, limit: Option<usize>, offset: Option<usize>) -> String {
         match (limit, offset) {
             (Some(l), Some(o)) => format!("LIMIT {} OFFSET {}", l, o),
@@ -201,7 +216,7 @@ impl DatabaseDriver for PostgresDriver {
             (None, None) => String::new(),
         }
     }
-    
+
     fn placeholder_style(&self) -> PlaceholderStyle {
         PlaceholderStyle::DollarNumbered
     }
@@ -253,7 +268,7 @@ impl DriverFactory for PostgresDriverFactory {
     fn create(&self) -> Box<dyn DatabaseDriver> {
         Box::new(PostgresDriver::new())
     }
-    
+
     fn db_type(&self) -> DatabaseType {
         DatabaseType::Postgresql
     }

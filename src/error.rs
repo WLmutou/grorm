@@ -1,6 +1,6 @@
-use std::fmt;
+use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
-use serde::ser::SerializeStruct; 
+use std::fmt;
 
 /// Convenience type alias for `Result<T, Error>`.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -77,14 +77,13 @@ impl Serialize for Error {
             Error::NotFound(msg) => ("NotFound", msg),
             Error::Transaction(msg) => ("Transaction", msg),
         };
-        
+
         let mut state = serializer.serialize_struct("Error", 2)?;
         state.serialize_field("type", variant)?;
         state.serialize_field("message", message)?;
         state.end()
     }
 }
-
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {

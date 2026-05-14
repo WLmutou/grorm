@@ -41,7 +41,11 @@ impl DatabaseDriver for MysqlDriver {
         Ok(())
     }
 
-    fn execute_prepared(&mut self, _name: &str, _params: &[Parameter]) -> Result<QueryResult, Error> {
+    fn execute_prepared(
+        &mut self,
+        _name: &str,
+        _params: &[Parameter],
+    ) -> Result<QueryResult, Error> {
         Ok(QueryResult {
             rows: Vec::new(),
             affected_rows: 0,

@@ -41,7 +41,11 @@ impl DatabaseDriver for DefaultDriver {
         Ok(())
     }
 
-    fn execute_prepared(&mut self, _name: &str, _params: &[Parameter]) -> Result<QueryResult, Error> {
+    fn execute_prepared(
+        &mut self,
+        _name: &str,
+        _params: &[Parameter],
+    ) -> Result<QueryResult, Error> {
         Ok(QueryResult {
             rows: Vec::new(),
             affected_rows: 0,
@@ -90,8 +94,6 @@ impl DatabaseDriver for DefaultDriver {
         PlaceholderStyle::Positional
     }
 }
-
-
 
 pub struct DefaultDriverFactory;
 

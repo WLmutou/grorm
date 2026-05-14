@@ -1,11 +1,11 @@
 use crate::driver::default::DefaultDriverFactory;
 use crate::driver::{ConnectionConfig, DatabaseDriver, DriverFactory};
-use gorust::channel::{self, Sender, Receiver};
-use std::collections::VecDeque;
 use crate::error::Error;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use gorust::channel::{self, Receiver, Sender};
 use parking_lot::Mutex;
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 type PooledConnection = Box<dyn DatabaseDriver>;
 
@@ -20,8 +20,6 @@ struct PoolInner {
     current_size: AtomicUsize,
 }
 
-
-
 #[derive(Clone)]
 pub struct ConnectionPool {
     inner: Arc<PoolInner>,
@@ -30,20 +28,20 @@ pub struct ConnectionPool {
 impl Default for ConnectionPool {
     fn default() -> Self {
         let (notify_tx, notify_rx) = channel::new();
-        
+
         let inner = PoolInner {
             connections: Mutex::new(Vec::new()),
             available: Mutex::new(VecDeque::new()),
             notify_tx,
             notify_rx,
-            config: ConnectionConfig::default(),      // 需要实现 Default
+            config: ConnectionConfig::default(), // 需要实现 Default
             factory: Box::new(DefaultDriverFactory), // 需要具体类型
-            max_size: 10,                             // 默认最大连接数
+            max_size: 10,                        // 默认最大连接数
             current_size: AtomicUsize::new(0),
         };
-        
-        ConnectionPool { 
-            inner: Arc::new(inner) 
+
+        ConnectionPool {
+            inner: Arc::new(inner),
         }
     }
 }
@@ -68,7 +66,6 @@ impl ConnectionPool {
 
         ConnectionPool { inner }
     }
-
 
     pub fn get(&self) -> Result<PoolConnection, Error> {
         {

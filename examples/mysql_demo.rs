@@ -1,4 +1,6 @@
-use grorm::{ConnectionConfig, ConnectionPool, DeriveModel, Error, MysqlDriverFactory, QueryBuilder};
+use grorm::{
+    ConnectionConfig, ConnectionPool, DeriveModel, Error, MysqlDriverFactory, QueryBuilder,
+};
 
 use gorust::runtime;
 

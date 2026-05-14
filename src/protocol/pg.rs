@@ -1,5 +1,5 @@
 use gorust::net::AsyncTcpStream;
-use md5::{Md5, Digest};
+use md5::{Digest, Md5};
 use std::net::SocketAddr;
 
 const PG_PROTOCOL_VERSION: i32 = 196608;
@@ -28,7 +28,12 @@ pub struct PgConnection {
 }
 
 impl PgConnection {
-    pub fn connect(addr: SocketAddr, username: &str, password: &str, database: &str) -> Result<Self, crate::error::Error> {
+    pub fn connect(
+        addr: SocketAddr,
+        username: &str,
+        password: &str,
+        database: &str,
+    ) -> Result<Self, crate::error::Error> {
         let stream = AsyncTcpStream::connect(addr)?;
         let mut conn = PgConnection {
             stream,
@@ -41,7 +46,11 @@ impl PgConnection {
         Ok(conn)
     }
 
-    fn send_startup_message(&mut self, username: &str, database: &str) -> Result<(), crate::error::Error> {
+    fn send_startup_message(
+        &mut self,
+        username: &str,
+        database: &str,
+    ) -> Result<(), crate::error::Error> {
         let mut buf = Vec::new();
         buf.extend_from_slice(&PG_PROTOCOL_VERSION.to_be_bytes());
         buf.extend_from_slice(b"user\0");
@@ -137,7 +146,9 @@ impl PgConnection {
                 b'E' => {
                     let mut err_buf = vec![0u8; (len - 4) as usize];
                     self.stream.read(&mut err_buf)?;
-                    return Err(format!("PostgreSQL error: {}", String::from_utf8_lossy(&err_buf)).into());
+                    return Err(
+                        format!("PostgreSQL error: {}", String::from_utf8_lossy(&err_buf)).into(),
+                    );
                 }
                 _ => {
                     self.skip_bytes((len - 4) as usize)?;
@@ -180,7 +191,9 @@ impl PgConnection {
                         let mut name_buf = Vec::new();
                         loop {
                             let b = self.read_byte()?;
-                            if b == 0 { break; }
+                            if b == 0 {
+                                break;
+                            }
                             name_buf.push(b);
                         }
                         let name = String::from_utf8_lossy(&name_buf).to_string();
@@ -221,7 +234,9 @@ impl PgConnection {
                     let mut tag_buf = Vec::new();
                     for _ in 0..(len - 4) {
                         let b = self.read_byte()?;
-                        if b == 0 { break; }
+                        if b == 0 {
+                            break;
+                        }
                         tag_buf.push(b);
                     }
                     command_tag = String::from_utf8_lossy(&tag_buf).to_string();
@@ -233,7 +248,9 @@ impl PgConnection {
                 b'E' => {
                     let mut err_buf = vec![0u8; (len - 4) as usize];
                     self.stream.read(&mut err_buf)?;
-                    return Err(format!("PostgreSQL error: {}", String::from_utf8_lossy(&err_buf)).into());
+                    return Err(
+                        format!("PostgreSQL error: {}", String::from_utf8_lossy(&err_buf)).into(),
+                    );
                 }
                 b'N' => {
                     self.skip_bytes((len - 4) as usize)?;
@@ -280,7 +297,11 @@ impl PgConnection {
         Ok(())
     }
 
-    pub fn execute_prepared(&mut self, name: &str, params: &[&str]) -> Result<PgResult, crate::error::Error> {
+    pub fn execute_prepared(
+        &mut self,
+        name: &str,
+        params: &[&str],
+    ) -> Result<PgResult, crate::error::Error> {
         let mut buf = Vec::new();
         buf.push(b'B');
         let portal = "\0";

@@ -21,9 +21,17 @@ pub struct MyConnection {
 }
 
 impl MyConnection {
-    pub fn connect(addr: SocketAddr, username: &str, password: &str, database: &str) -> Result<Self, crate::error::Error> {
+    pub fn connect(
+        addr: SocketAddr,
+        username: &str,
+        password: &str,
+        database: &str,
+    ) -> Result<Self, crate::error::Error> {
         let stream = AsyncTcpStream::connect(addr)?;
-        let mut conn = MyConnection { stream, sequence_id: 0 };
+        let mut conn = MyConnection {
+            stream,
+            sequence_id: 0,
+        };
         conn.read_handshake()?;
         conn.send_handshake_response(username, password, database)?;
         conn.read_auth_result()?;
@@ -39,7 +47,9 @@ impl MyConnection {
         let mut version = String::new();
         loop {
             let b = self.read_u8()?;
-            if b == 0 { break; }
+            if b == 0 {
+                break;
+            }
             version.push(b as char);
         }
         let _thread_id = self.read_u32()?;
@@ -58,7 +68,12 @@ impl MyConnection {
         Ok(())
     }
 
-    fn send_handshake_response(&mut self, username: &str, password: &str, database: &str) -> Result<(), crate::error::Error> {
+    fn send_handshake_response(
+        &mut self,
+        username: &str,
+        password: &str,
+        database: &str,
+    ) -> Result<(), crate::error::Error> {
         let mut payload = Vec::new();
         payload.extend_from_slice(&0x0285a2ffu32.to_le_bytes());
         payload.extend_from_slice(&0x21u32.to_le_bytes());
@@ -93,7 +108,9 @@ impl MyConnection {
             let mut resp = vec![0x14u8];
             let mut hash = [0u8; 20];
             for (i, b) in password.bytes().enumerate() {
-                if i < 20 { hash[i] = b; }
+                if i < 20 {
+                    hash[i] = b;
+                }
             }
             resp.extend_from_slice(&hash);
             resp
@@ -193,7 +210,8 @@ impl MyConnection {
                                 let len = buf[pos] as usize;
                                 pos += 1;
                                 if len < 251 {
-                                    let val = String::from_utf8_lossy(&buf[pos..pos + len]).to_string();
+                                    let val =
+                                        String::from_utf8_lossy(&buf[pos..pos + len]).to_string();
                                     row.push(val);
                                     pos += len;
                                 } else {
@@ -214,7 +232,8 @@ impl MyConnection {
                                 let len = buf[pos] as usize;
                                 pos += 1;
                                 if len < 251 {
-                                    let val = String::from_utf8_lossy(&buf[pos..pos + len]).to_string();
+                                    let val =
+                                        String::from_utf8_lossy(&buf[pos..pos + len]).to_string();
                                     row.push(val);
                                     pos += len;
                                 } else {
@@ -240,7 +259,9 @@ impl MyConnection {
         self.stream_read(&mut buf)?;
 
         let mut pos = 0;
-        while pos < buf.len() && buf[pos] != b'c' { pos += 1; }
+        while pos < buf.len() && buf[pos] != b'c' {
+            pos += 1;
+        }
         pos += 1;
         let catalog_len = buf[pos] as usize;
         pos += 1 + catalog_len;
@@ -267,7 +288,12 @@ impl MyConnection {
         pos += 2;
         let decimals = buf[pos];
 
-        Ok(MyColumnInfo { name, data_type, flags, decimals })
+        Ok(MyColumnInfo {
+            name,
+            data_type,
+            flags,
+            decimals,
+        })
     }
 
     fn read_eof(&mut self) -> Result<(), crate::error::Error> {
@@ -323,7 +349,11 @@ impl MyConnection {
         self.read_lenenc_from_byte(first, &mut vec![0u8; 0])
     }
 
-    fn read_lenenc_from_byte(&mut self, first: u8, _buf: &mut Vec<u8>) -> Result<u64, crate::error::Error> {
+    fn read_lenenc_from_byte(
+        &mut self,
+        first: u8,
+        _buf: &mut Vec<u8>,
+    ) -> Result<u64, crate::error::Error> {
         match first {
             0xFB => Ok(0),
             0xFC => {

@@ -1,8 +1,8 @@
 use crate::driver::DatabaseDriver;
+use crate::error::Error;
 use crate::orm::model::Model;
 use crate::orm::query::QueryBuilder;
 use crate::types::Value;
-use crate::error::Error;
 
 /// A database transaction with chainable API.
 ///
