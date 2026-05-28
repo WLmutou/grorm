@@ -103,7 +103,7 @@ impl ConnectionPool {
             });
         }
 
-        self.inner.notify_rx.recv();
+        let _ = self.inner.notify_rx.recv();
 
         let mut available = self.inner.available.lock();
         if let Some(idx) = available.pop_front() {
@@ -160,6 +160,7 @@ impl Drop for PoolConnection {
             connections[self.index] = Some(conn);
         }
         self.pool.available.lock().push_back(self.index);
-        let _ = self.pool.notify_tx.send(());
+        // 使用 try_send 避免在 Drop 中阻塞导致死锁
+        let _ = self.pool.notify_tx.try_send(());
     }
 }

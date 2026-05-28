@@ -10,12 +10,12 @@ keywords = ["orm", "postgresql", "mysql", "sqlite", "gorust"]
 categories = ["database", "asynchronous"]
 
 [dependencies]
-gorust = "0.1.6"
+gorust = "0.1.8"
 grorm-macros = "0.1.0"
 byteorder = "1.4"
 parking_lot = "0.12"
 lazy_static = "1.4"
-log = "0.4"
+grlog = "0.1.1"
 hex = "0.4"
 md-5 = "0.10"
 serde = { version = "1.0", features = ["derive"] }

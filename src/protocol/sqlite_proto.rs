@@ -328,7 +328,7 @@ impl SqliteConnection {
         let content = fs::read_to_string(&data_path)?;
         if let Some(header_line) = content.lines().next() {
             Ok(header_line
-                .split('|')
+                .split('\x1f')
                 .map(|c| SqliteColumnInfo {
                     name: c.trim().to_string(),
                     data_type: "TEXT".to_string(),
@@ -414,7 +414,7 @@ impl SqliteConnection {
             (cols, vals)
         };
 
-        let header = final_columns.join("|");
+        let header = final_columns.join("\x1f");
         if !content.starts_with(&header) {
             content = format!("{}\n", header);
         }
@@ -427,7 +427,7 @@ impl SqliteConnection {
             }
         }
 
-        let row = final_values.join("|");
+        let row = final_values.join("\x1f");
         content.push_str(&row);
         content.push('\n');
 
@@ -461,7 +461,7 @@ impl SqliteConnection {
             return Ok(Vec::new());
         }
 
-        let header: Vec<&str> = lines[0].split('|').collect();
+        let header: Vec<&str> = lines[0].split('\x1f').collect();
         let col_indices: Vec<usize> = if columns.len() == 1 && columns[0] == "*" {
             (0..header.len()).collect()
         } else {
@@ -478,7 +478,7 @@ impl SqliteConnection {
             if line.is_empty() {
                 continue;
             }
-            let values: Vec<&str> = line.split('|').collect();
+            let values: Vec<&str> = line.split('\x1f').collect();
 
             if !where_filters.is_empty() {
                 let all_match = where_filters.iter().all(|f| f.matches(&header, &values));
@@ -624,7 +624,7 @@ impl SqliteConnection {
             return Ok(0);
         }
 
-        let header: Vec<&str> = lines[0].split('|').collect();
+        let header: Vec<&str> = lines[0].split('\x1f').collect();
         let where_filters = self.parse_where_clause(sql, &header);
 
         let mut deleted = 0;
@@ -634,7 +634,7 @@ impl SqliteConnection {
             if line.is_empty() {
                 continue;
             }
-            let values: Vec<&str> = line.split('|').collect();
+            let values: Vec<&str> = line.split('\x1f').collect();
 
             let should_delete = if where_filters.is_empty() {
                 true
@@ -745,7 +745,7 @@ impl SqliteConnection {
             return Ok(0);
         }
 
-        let header: Vec<&str> = lines[0].split('|').collect();
+        let header: Vec<&str> = lines[0].split('\x1f').collect();
         let where_filters = self.parse_where_clause(sql, &header);
         let set_pairs = self.parse_set_clause(sql, &header);
 
@@ -756,7 +756,7 @@ impl SqliteConnection {
             if line.is_empty() {
                 continue;
             }
-            let values: Vec<&str> = line.split('|').collect();
+            let values: Vec<&str> = line.split('\x1f').collect();
 
             let should_update = if where_filters.is_empty() {
                 true
@@ -771,7 +771,7 @@ impl SqliteConnection {
                         new_values[*col_idx] = new_val.clone();
                     }
                 }
-                new_content.push_str(&new_values.join("|"));
+                new_content.push_str(&new_values.join("\x1f"));
                 new_content.push('\n');
                 updated += 1;
             } else {
@@ -856,15 +856,47 @@ impl SqliteConnection {
             if let Some(start) = rest.find('(') {
                 if let Some(end) = rest[start..].find(')') {
                     let vals_str = &rest[start + 1..start + end];
-                    let vals: Vec<String> = vals_str
-                        .split(',')
-                        .map(|v| v.trim().trim_matches('\'').to_string())
-                        .collect();
+                    let vals = Self::split_sql_values(vals_str);
                     return Ok(vals);
                 }
             }
         }
         Ok(Vec::new())
+    }
+
+    fn split_sql_values(input: &str) -> Vec<String> {
+        let mut values = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        let mut chars = input.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '\'' {
+                if in_quotes {
+                    if chars.peek() == Some(&'\'') {
+                        current.push(c);
+                        current.push(chars.next().unwrap());
+                    } else {
+                        in_quotes = false;
+                        current.push(c);
+                    }
+                } else {
+                    in_quotes = true;
+                    current.push(c);
+                }
+            } else if c == ',' && !in_quotes {
+                values.push(current.trim().trim_matches('\'').to_string());
+                current = String::new();
+            } else {
+                current.push(c);
+            }
+        }
+
+        if !current.is_empty() {
+            values.push(current.trim().trim_matches('\'').to_string());
+        }
+
+        values
     }
 
     fn extract_select_columns(&self, sql: &str) -> Result<Vec<String>, crate::error::Error> {
