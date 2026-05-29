@@ -12,7 +12,7 @@ fn unique_db_path() -> String {
     format!("target/test_integration_{}_{}.db", std::process::id(), id)
 }
 
-#[derive(Debug, PartialEq, DeriveModel)]
+#[derive(Debug, PartialEq, Default, DeriveModel)]
 #[table = "test_users"]
 struct TestUser {
     id: i64,
@@ -106,7 +106,7 @@ fn case_find_all() -> Result<(), Error> {
         age: 25,
     })?;
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 2);
 
     cleanup(&db_path);
@@ -131,7 +131,7 @@ fn case_where_eq_and_find() -> Result<(), Error> {
         age: 25,
     })?;
 
-    let users = qb.where_eq("age", Value::from(30)).find()?;
+    let users = qb.where_model(&TestUser { age: 30, ..Default::default() }).find()?;
     assert_eq!(users.len(), 1);
     assert_eq!(users[0].name, "Alice");
 
@@ -204,6 +204,55 @@ fn case_where_model() -> Result<(), Error> {
     Ok(())
 }
 
+fn case_sql_injection_detection() -> Result<(), Error> {
+    use grorm::check_sql_injection;
+    
+    // 正常字符串应该通过
+    assert!(check_sql_injection("Alice").is_ok());
+    assert!(check_sql_injection("bob@test.com").is_ok());
+    assert!(check_sql_injection("SELECT * FROM users WHERE name = 'Alice'").is_ok());
+    assert!(check_sql_injection("CREATE TABLE users").is_ok());
+    
+    // 检测 SQL 注释符
+    assert!(check_sql_injection("Alice'--").is_err());
+    assert!(check_sql_injection("Alice/* comment */").is_err());
+    assert!(check_sql_injection("Alice# comment").is_err());
+    
+    // 检测多语句注入
+    assert!(check_sql_injection("'; SELECT * FROM users").is_err());
+    assert!(check_sql_injection("';INSERT INTO users").is_err());
+    assert!(check_sql_injection("'; DROP TABLE users").is_err());
+    assert!(check_sql_injection("'; DELETE FROM users").is_err());
+    assert!(check_sql_injection("'; UPDATE users").is_err());
+    assert!(check_sql_injection("'; CREATE TABLE users").is_err());
+    
+    // 检测恒真条件
+    assert!(check_sql_injection("' OR 1=1").is_err());
+    assert!(check_sql_injection("' OR '1'='1'").is_err());
+    assert!(check_sql_injection("' AND 1=1").is_err());
+    
+    Ok(())
+}
+
+fn case_sql_injection_identifier_validation() -> Result<(), Error> {
+    use grorm::validate_identifier;
+    
+    // 合法的标识符
+    assert!(validate_identifier("users").is_ok());
+    assert!(validate_identifier("user_name").is_ok());
+    assert!(validate_identifier("User123").is_ok());
+    assert!(validate_identifier("_private").is_ok());
+    
+    // 非法的标识符
+    assert!(validate_identifier("").is_err());
+    assert!(validate_identifier("1user").is_err());
+    assert!(validate_identifier("user;drop").is_err());
+    assert!(validate_identifier("user name").is_err());
+    assert!(validate_identifier("user-name").is_err());
+    
+    Ok(())
+}
+
 fn case_limit_offset_order() -> Result<(), Error> {
     let (pool, db_path) = setup()?;
     let mut conn = pool.get()?;
@@ -218,7 +267,7 @@ fn case_limit_offset_order() -> Result<(), Error> {
         })?;
     }
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 10);
 
     cleanup(&db_path);
@@ -263,8 +312,8 @@ fn case_update_one() -> Result<(), Error> {
     })?;
 
     let rows = qb
-        .where_eq("name", Value::from("Alice"))
-        .update_one("age", Value::from(31))?;
+        .where_model(&TestUser { name: "Alice".into(), ..Default::default() })
+        .update_model(&TestUser { age: 31, ..Default::default() })?;
     assert_eq!(rows, 1);
 
     let user = qb.find_by_id(1)?;
@@ -293,7 +342,7 @@ fn case_update_model() -> Result<(), Error> {
         age: 35,
     };
     let rows = qb
-        .where_eq("name", Value::from("Alice"))
+        .where_model(&TestUser { name: "Alice".into(), ..Default::default() })
         .update_model(&update)?;
     assert_eq!(rows, 1);
 
@@ -322,10 +371,10 @@ fn case_delete() -> Result<(), Error> {
         age: 25,
     })?;
 
-    let rows = qb.where_eq("name", Value::from("Alice")).delete()?;
+    let rows = qb.where_model(&TestUser { name: "Alice".into(), ..Default::default() }).delete()?;
     assert_eq!(rows, 1);
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 1);
     assert_eq!(all[0].name, "Bob");
 
@@ -355,7 +404,7 @@ fn case_transaction_commit() -> Result<(), Error> {
     }
 
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 2);
 
     cleanup(&db_path);
@@ -378,7 +427,7 @@ fn case_transaction_rollback() -> Result<(), Error> {
     }
 
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 0);
 
     cleanup(&db_path);
@@ -400,7 +449,7 @@ fn case_transaction_auto_rollback_on_drop() -> Result<(), Error> {
     }
 
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 0);
 
     cleanup(&db_path);
@@ -425,11 +474,11 @@ fn case_find_one() -> Result<(), Error> {
         age: 25,
     })?;
 
-    let user = qb.where_eq("age", Value::from(30)).find_one()?;
+    let user = qb.where_model(&TestUser { age: 30, ..Default::default() }).first()?;
     assert!(user.is_some());
     assert_eq!(user.unwrap().name, "Alice");
 
-    let none = qb.where_eq("age", Value::from(99)).find_one()?;
+    let none = qb.where_model(&TestUser { age: 99, ..Default::default() }).first()?;
     assert!(none.is_none());
 
     cleanup(&db_path);
@@ -448,7 +497,7 @@ fn case_find_where() -> Result<(), Error> {
         age: 30,
     })?;
 
-    let users = qb.find_where("name", Value::from("Alice"))?;
+    let users = qb.where_model(&TestUser { name: "Alice".into(), ..Default::default() }).find()?;
     assert_eq!(users.len(), 1);
     assert_eq!(users[0].email, "alice@test.com");
 
@@ -481,7 +530,7 @@ fn case_update_without_where() -> Result<(), Error> {
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    let result = qb.update_one("age", Value::from(99));
+    let result = qb.update_model(&TestUser { age: 99, ..Default::default() });
     assert!(result.is_err());
 
     cleanup(&db_path);
@@ -525,8 +574,8 @@ fn case_multiple_conditions() -> Result<(), Error> {
     })?;
 
     let users = qb
-        .where_eq("age", Value::from(30))
-        .where_eq("name", Value::from("Alice"))
+        .where_model(&TestUser { age: 30, ..Default::default() })
+        .where_model(&TestUser { name: "Alice".into(), ..Default::default() })
         .find()?;
     assert_eq!(users.len(), 1);
     assert_eq!(users[0].name, "Alice");
@@ -553,10 +602,10 @@ fn case_chain_reset_after_find() -> Result<(), Error> {
         age: 25,
     })?;
 
-    let users = qb.where_eq("age", Value::from(30)).find()?;
+    let users = qb.where_model(&TestUser { age: 30, ..Default::default() }).find()?;
     assert_eq!(users.len(), 1);
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 2);
 
     cleanup(&db_path);
@@ -750,7 +799,7 @@ fn case_insert_multiple() -> Result<(), Error> {
     assert_eq!(id2, Some(2));
     assert_eq!(id3, Some(3));
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 3);
 
     cleanup(&db_path);
@@ -777,11 +826,11 @@ fn case_transaction_multiple_ops() -> Result<(), Error> {
             age: 25,
         })?;
 
-        tx.where_eq("name", Value::from("Alice"))
-            .update_one("age", Value::from(31))?;
-        tx.where_eq("name", Value::from("Bob")).delete()?;
+        tx.where_model(&TestUser { name: "Alice".into(), ..Default::default() })
+            .update_model(&TestUser { age: 31, ..Default::default() })?;
+        tx.where_model(&TestUser { name: "Bob".into(), ..Default::default() }).delete()?;
 
-        let users = tx.find_all()?;
+        let users = tx.find()?;
         assert_eq!(users.len(), 1);
         assert_eq!(users[0].name, "Alice");
         assert_eq!(users[0].age, 31);
@@ -790,7 +839,7 @@ fn case_transaction_multiple_ops() -> Result<(), Error> {
     }
 
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 1);
     assert_eq!(all[0].name, "Alice");
     assert_eq!(all[0].age, 31);
@@ -828,7 +877,7 @@ fn case_composite_unique_index() -> Result<(), Error> {
         email: "alice@test.com".into(),
     })?;
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 1);
 
     cleanup(&db_path);
@@ -999,7 +1048,7 @@ fn case_transaction_find_one() -> Result<(), Error> {
         age: 30,
     })?;
 
-    let user = tx.find_one()?;
+    let user = tx.first()?;
     assert!(user.is_some());
     assert_eq!(user.unwrap().name, "Alice");
 
@@ -1021,7 +1070,7 @@ fn case_transaction_find_where() -> Result<(), Error> {
         age: 30,
     })?;
 
-    let users = tx.find_where("name", Value::from("Alice"))?;
+    let users = tx.where_model(&TestUser { name: "Alice".into(), ..Default::default() }).find()?;
     assert_eq!(users.len(), 1);
     assert_eq!(users[0].email, "alice@test.com");
 
@@ -1050,7 +1099,7 @@ fn case_transaction_update_model() -> Result<(), Error> {
         age: 35,
     };
     let rows = tx
-        .where_eq("name", Value::from("Alice"))
+        .where_model(&TestUser { name: "Alice".into(), ..Default::default() })
         .update_model(&update)?;
     assert_eq!(rows, 1);
 
@@ -1077,7 +1126,7 @@ fn case_transaction_limit_offset_order() -> Result<(), Error> {
         })?;
     }
 
-    let all = tx.find_all()?;
+    let all = tx.find()?;
     assert_eq!(all.len(), 5);
 
     tx.commit()?;
@@ -1171,7 +1220,7 @@ fn case_transaction_explicit_rollback() -> Result<(), Error> {
     }
 
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 0);
 
     cleanup(&db_path);
@@ -1194,7 +1243,7 @@ fn case_transaction_commit_then_drop() -> Result<(), Error> {
     }
 
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 1);
 
     cleanup(&db_path);
@@ -1220,7 +1269,7 @@ fn case_update_model_no_fields() -> Result<(), Error> {
         age: 0,
     };
     let result = qb
-        .where_eq("name", Value::from("Alice"))
+        .where_model(&TestUser { name: "Alice".into(), ..Default::default() })
         .update_model(&empty_update);
     assert!(result.is_err());
 
@@ -1240,7 +1289,7 @@ fn case_insert_with_explicit_id() -> Result<(), Error> {
         age: 30,
     })?;
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 1);
     assert_eq!(all[0].name, "Alice");
 
@@ -1265,7 +1314,7 @@ fn case_find_all_empty() -> Result<(), Error> {
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 0);
 
     cleanup(&db_path);
@@ -1290,7 +1339,7 @@ fn case_order_multiple_columns() -> Result<(), Error> {
         age: 30,
     })?;
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 2);
 
     cleanup(&db_path);
@@ -1309,7 +1358,7 @@ fn case_where_in_empty() -> Result<(), Error> {
         age: 30,
     })?;
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 1);
 
     cleanup(&db_path);
@@ -1322,8 +1371,8 @@ fn case_update_one_zero_rows() -> Result<(), Error> {
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
     let rows = qb
-        .where_eq("name", Value::from("Nobody"))
-        .update_one("age", Value::from(99))?;
+        .where_model(&TestUser { name: "Nobody".into(), ..Default::default() })
+        .update_model(&TestUser { age: 99, ..Default::default() })?;
     assert_eq!(rows, 0);
 
     cleanup(&db_path);
@@ -1335,7 +1384,7 @@ fn case_delete_zero_rows() -> Result<(), Error> {
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    let rows = qb.where_eq("name", Value::from("Nobody")).delete()?;
+    let rows = qb.where_model(&TestUser { name: "Nobody".into(), ..Default::default() }).delete()?;
     assert_eq!(rows, 0);
 
     cleanup(&db_path);
@@ -1347,7 +1396,7 @@ fn case_find_no_results() -> Result<(), Error> {
     let mut conn = pool.get()?;
     let mut qb = QueryBuilder::<TestUser>::new(conn.driver_mut());
 
-    let users = qb.where_eq("name", Value::from("Nobody")).find()?;
+    let users = qb.where_model(&TestUser { name: "Nobody".into(), ..Default::default() }).find()?;
     assert_eq!(users.len(), 0);
 
     cleanup(&db_path);
@@ -1366,7 +1415,7 @@ fn case_limit_zero() -> Result<(), Error> {
         age: 30,
     })?;
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 1);
 
     cleanup(&db_path);
@@ -1385,7 +1434,7 @@ fn case_offset_beyond_data() -> Result<(), Error> {
         age: 30,
     })?;
 
-    let all = qb.find_all()?;
+    let all = qb.find()?;
     assert_eq!(all.len(), 1);
 
     cleanup(&db_path);
@@ -2218,6 +2267,8 @@ fn run_all_tests() {
     run!(case_where_in);
     run!(case_where_in_empty);
     run!(case_where_model);
+    run!(case_sql_injection_detection);
+    run!(case_sql_injection_identifier_validation);
 
     println!("\n=== Test Results ===");
     println!("Passed: {}", passed);

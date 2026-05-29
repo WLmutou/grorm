@@ -10,7 +10,7 @@
 //! use grorm::DeriveModel;
 //! use gorust::runtime;
 //!
-//! #[derive(Debug, DeriveModel)]
+//! #[derive(Debug, Default, DeriveModel)]
 //! #[table = "users"]
 //! struct User {
 //!     id: i64,
@@ -37,7 +37,7 @@
 //!     qb.insert(&user)?;
 //!
 //!     // Chainable query
-//!     let users = qb.where_eq("name", Value::from("Alice")).find()?;
+//!     let users = qb.where_model(&User { name: "Alice".into(), ..Default::default() }).find()?;
 //!     println!("{:?}", users);
 //!
 //!     Ok(())
@@ -55,6 +55,14 @@
 //! - **IN queries**: `where_in("name", vec![...])`
 //! - **Connection pooling**: gorust channel-based pool
 //! - **Derive macros**: `#[derive(DeriveModel)]` auto-generates Model trait
+//!
+//! ## Security
+//!
+//! grorm 内置 SQL 注入防护功能：
+//! - 参数化查询：所有值通过 `?` 占位符传递，避免字符串拼接
+//! - 标识符验证：表名、列名只允许字母、数字、下划线
+//! - 注入检测：自动检测 SQL 注释、危险关键字、多语句注入等模式
+//! - 详细错误：检测到注入时返回 `Error::SqlInjection` 错误
 
 pub mod driver;
 pub mod error;
@@ -70,6 +78,7 @@ pub use driver::{PostgresDriver, PostgresDriverFactory};
 pub use driver::{SqliteDriver, SqliteDriverFactory};
 pub use error::{Error, Result};
 pub use orm::{ColumnInfo, JoinClause, JoinType, Model, QueryBuilder, Transaction};
+pub use orm::query::{check_sql_injection, validate_identifier};
 pub use pool::ConnectionPool;
 pub use types::{FromSql, Id, ToSql, Value};
 

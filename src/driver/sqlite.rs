@@ -1,4 +1,5 @@
 use super::*;
+use crate::orm::query::check_sql_injection;
 use crate::protocol::sqlite_proto::{SqliteConnection, SqliteResult};
 
 pub struct SqliteDriver {
@@ -36,6 +37,36 @@ impl SqliteDriver {
         }
     }
 
+    fn extract_alter_table_name(&self, sql: &str) -> Option<String> {
+        let sql_upper = sql.to_uppercase();
+        if let Some(pos) = sql_upper.find("ALTER TABLE") {
+            let rest = &sql[pos + 11..].trim();
+            let name = rest
+                .split(|c: char| c.is_whitespace())
+                .next()
+                .unwrap_or("unknown")
+                .trim_matches(|c: char| c == '"' || c == '`' || c == '\'')
+                .to_string();
+            return Some(name);
+        }
+        None
+    }
+
+    fn extract_add_column_name(&self, sql: &str) -> Option<String> {
+        let sql_upper = sql.to_uppercase();
+        if let Some(pos) = sql_upper.find("ADD COLUMN") {
+            let rest = &sql[pos + 10..].trim();
+            let name = rest
+                .split(|c: char| c.is_whitespace())
+                .next()
+                .unwrap_or("unknown")
+                .trim_matches(|c: char| c == '"' || c == '`' || c == '\'')
+                .to_string();
+            return Some(name);
+        }
+        None
+    }
+
     fn substitute_params(sql: &str, params: &[Parameter]) -> String {
         let mut result = sql.to_string();
         for param in params {
@@ -71,6 +102,9 @@ impl DatabaseDriver for SqliteDriver {
     }
 
     fn query(&mut self, sql: &str, params: &[Parameter]) -> Result<QueryResult, Error> {
+        // SQL 注入检查
+        check_sql_injection(sql)?;
+        
         let final_sql = Self::substitute_params(sql, params);
         let sql_upper = sql.trim().to_uppercase();
         match self.get_conn()?.execute_query(&final_sql)? {
@@ -112,6 +146,21 @@ impl DatabaseDriver for SqliteDriver {
     }
 
     fn execute(&mut self, sql: &str, params: &[Parameter]) -> Result<u64, Error> {
+        let sql_upper = sql.trim().to_uppercase();
+        
+        // 处理 ALTER TABLE ADD COLUMN
+        if sql_upper.starts_with("ALTER TABLE") && sql_upper.contains("ADD COLUMN") {
+            // 解析：ALTER TABLE table_name ADD COLUMN column_name TYPE NULL
+            if let Some(table_name) = self.extract_alter_table_name(sql) {
+                if let Some(col_name) = self.extract_add_column_name(sql) {
+                    // 为现有数据添加新列的默认值
+                    if let Ok(conn) = self.get_conn() {
+                        let _ = conn.add_column_to_existing_data(&table_name, &col_name, "0");
+                    }
+                }
+            }
+        }
+        
         let result = self.query(sql, params)?;
         Ok(result.affected_rows)
     }

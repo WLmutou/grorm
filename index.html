@@ -974,6 +974,11 @@
                     <h3 class="feature-title">派生宏</h3>
                     <p class="feature-desc">#[derive(DeriveModel)] 自动生成 Model trait，支持索引、唯一约束等注解</p>
                 </div>
+                <div class="feature-card fade-up delay-1">
+                    <div class="feature-icon"><i class="fas fa-shield-alt"></i></div>
+                    <h3 class="feature-title">SQL 注入防护</h3>
+                    <p class="feature-desc">内置多层防护：参数化查询、标识符验证、注入检测，自动保护您的应用安全</p>
+                </div>
             </div>
         </div>
     </section>
@@ -1256,6 +1261,12 @@
                     <h3>事务自动回滚</h3>
                     <p>Transaction 在 Drop 时自动 rollback，只有显式 commit() 才会提交</p>
                     <code>tx.commit()?; // 未 commit 则自动回滚</code>
+                </div>
+                <div class="advanced-card fade-up delay-1">
+                    <span class="card-number">07</span>
+                    <h3>SQL 注入防护</h3>
+                    <p>内置多层防护：参数化查询、标识符验证、注入检测，自动保护您的应用安全</p>
+                    <code>check_sql_injection(input)?;</code>
                 </div>
             </div>
         </div>

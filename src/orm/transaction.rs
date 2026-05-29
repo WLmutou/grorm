@@ -15,7 +15,7 @@ use crate::types::Value;
 /// use grorm::{Transaction, Value, SqliteDriverFactory, ConnectionConfig, ConnectionPool, Error};
 /// use grorm::DeriveModel;
 ///
-/// #[derive(Debug, DeriveModel)]
+/// #[derive(Debug, Default, DeriveModel)]
 /// #[table = "users"]
 /// struct User {
 ///     id: i64,
@@ -32,8 +32,8 @@ use crate::types::Value;
 ///   let user = User { id: 0, name: "Alice".into(), email: "alice@x.com".into(), age: 30 };
 ///   tx.insert(&user)?;
 ///
-///   tx.where_eq("name", Value::from("Bob"))
-///     .update_one("age", Value::from(26))?;
+///   tx.where_model(&User { name: "Bob".into(), ..Default::default() })
+///     .update_model(&User { age: 26, ..Default::default() })?;
 ///
 ///   tx.commit()?;
 ///   // If tx goes out of scope without commit, it auto-rolls back
@@ -71,11 +71,7 @@ impl<'a, M: Model> Transaction<'a, M> {
         Ok(())
     }
 
-    /// Adds a `WHERE column = value` condition.
-    pub fn where_eq(&mut self, column: &str, value: Value) -> &mut Self {
-        self.qb.where_eq(column, value);
-        self
-    }
+   
 
     /// Adds WHERE conditions from non-zero/non-empty fields of a model.
     pub fn where_model(&mut self, model: &M) -> &mut Self {
@@ -112,9 +108,15 @@ impl<'a, M: Model> Transaction<'a, M> {
         self.qb.find()
     }
 
-    /// Executes the query and returns the first matching row.
-    pub fn find_one(&mut self) -> Result<Option<M>, Error> {
-        self.qb.find_one()
+
+    /// Returns the first record ordered by primary key ascending.
+    pub fn first(&mut self) -> Result<Option<M>, Error> {
+        self.qb.first()
+    }
+
+    /// Returns the last record ordered by primary key descending.
+    pub fn last(&mut self) -> Result<Option<M>, Error> {
+        self.qb.last()
     }
 
     /// Returns the count of matching rows.
@@ -122,30 +124,20 @@ impl<'a, M: Model> Transaction<'a, M> {
         self.qb.count()
     }
 
-    /// Returns all rows from the table.
-    pub fn find_all(&mut self) -> Result<Vec<M>, Error> {
-        self.qb.find_all()
-    }
+   
 
     /// Finds a row by primary key.
     pub fn find_by_id(&mut self, id: i64) -> Result<Option<M>, Error> {
         self.qb.find_by_id(id)
     }
 
-    /// Finds rows where a column equals a value.
-    pub fn find_where(&mut self, column: &str, value: Value) -> Result<Vec<M>, Error> {
-        self.qb.find_where(column, value)
-    }
+
 
     /// Inserts a model into the table.
     pub fn insert(&mut self, model: &M) -> Result<Option<i64>, Error> {
         self.qb.insert(model)
     }
 
-    /// Updates a single column on matching rows.
-    pub fn update_one(&mut self, column: &str, value: Value) -> Result<u64, Error> {
-        self.qb.update_one(column, value)
-    }
 
     /// Updates multiple columns from a model's non-zero fields.
     pub fn update_model(&mut self, model: &M) -> Result<u64, Error> {

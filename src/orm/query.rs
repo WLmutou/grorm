@@ -3,6 +3,102 @@ use crate::error::Error;
 use crate::orm::model::Model;
 use crate::types::Value;
 
+/// SQL 注入防护：检查字符串是否包含潜在的 SQL 注入模式
+///
+/// 检测以下危险模式：
+/// - SQL 注释符 (--, /*, #)
+/// - 分号后跟 SQL 关键字（多语句注入）
+/// - OR/AND 后跟恒真条件 (1=1, '1'='1', etc.)
+///
+/// # 参数
+/// - `input`: 要检查的字符串
+///
+/// # 返回
+/// - `Ok(())`: 未检测到注入风险
+/// - `Err(Error::SqlInjection)`: 检测到潜在的 SQL 注入
+pub fn check_sql_injection(input: &str) -> Result<(), Error> {
+    let upper = input.to_uppercase();
+    
+    // 检测 SQL 注释符
+    if upper.contains("--") || upper.contains("/*") || upper.contains('#') {
+        return Err(Error::SqlInjection(
+            format!("Potential SQL injection detected: SQL comment found in '{}'", input)
+        ));
+    }
+    
+    // 检测多语句注入（分号后跟 SQL 关键字）
+    if upper.contains("; SELECT") || upper.contains(";INSERT") || upper.contains(";UPDATE") 
+        || upper.contains(";DELETE") || upper.contains(";DROP") || upper.contains(";ALTER")
+        || upper.contains("; CREATE") || upper.contains("; EXEC") {
+        return Err(Error::SqlInjection(
+            format!("Potential SQL injection detected: multi-statement in '{}'", input)
+        ));
+    }
+    
+    // 检测 OR/AND 恒真条件
+    let tautology_patterns = [
+        "OR 1=1", "OR '1'='1'", "OR \"1\"=\"1\"", "OR 1 = 1",
+        "AND 1=1", "AND '1'='1'", "AND \"1\"=\"1\"", "AND 1 = 1",
+        "OR ''=''", "OR \"\"=\"\"", "OR NULL IS NULL",
+    ];
+    for pattern in &tautology_patterns {
+        if upper.contains(pattern) {
+            return Err(Error::SqlInjection(
+                format!("Potential SQL injection detected: tautology condition in '{}'", input)
+            ));
+        }
+    }
+    
+    // 检测用户输入中的危险 SQL 关键字（仅在包含引号或分号的情况下）
+    // 这样可以避免误伤正常的 DDL 语句
+    if input.contains('\'') || input.contains(';') {
+        let dangerous_patterns = [
+            "DROP TABLE", "DROP DATABASE", "DROP INDEX",
+            "DELETE FROM", "DELETE ALL", "DELETE ",
+            "INSERT INTO", "INSERT ALL", "INSERT ",
+            "UPDATE SET", "UPDATE ALL", "UPDATE ",
+            "ALTER TABLE", "ALTER DATABASE", "ALTER ",
+            "CREATE TABLE", "CREATE DATABASE", "CREATE INDEX", "CREATE ",
+            "EXEC ", "EXECUTE ",
+            "TRUNCATE TABLE", "TRUNCATE ",
+        ];
+        for pattern in &dangerous_patterns {
+            if upper.contains(pattern) {
+                return Err(Error::SqlInjection(
+                    format!("Potential SQL injection detected: dangerous pattern '{}' in '{}'", pattern.trim(), input)
+                ));
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// 验证标识符（表名、列名）是否安全
+///
+/// 只允许字母、数字、下划线，且不能以数字开头
+pub fn validate_identifier(name: &str) -> Result<(), Error> {
+    if name.is_empty() {
+        return Err(Error::SqlInjection("Empty identifier".to_string()));
+    }
+    
+    if name.chars().next().unwrap().is_ascii_digit() {
+        return Err(Error::SqlInjection(
+            format!("Invalid identifier '{}': cannot start with digit", name)
+        ));
+    }
+    
+    for c in name.chars() {
+        if !c.is_alphanumeric() && c != '_' {
+            return Err(Error::SqlInjection(
+                format!("Invalid identifier '{}': contains invalid character '{}'", name, c)
+            ));
+        }
+    }
+    
+    Ok(())
+}
+
 /// SQL JOIN type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
@@ -99,16 +195,6 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         M::table_name()
     }
 
-    /// Adds a `WHERE column = value` condition.
-    ///
-    /// ```rust,ignore
-    /// qb.where_eq("name", Value::from("Alice")).find()?;
-    /// ```
-    pub fn where_eq(&mut self, column: &str, value: Value) -> &mut Self {
-        self.conditions
-            .push((format!("{} = ?", column), vec![value_to_param(&value)]));
-        self
-    }
 
     /// Adds WHERE conditions from non-zero/non-empty fields of a model.
     ///
@@ -135,6 +221,9 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
     /// qb.where_in("name", vec![Value::from("Alice"), Value::from("Bob")]).find()?;
     /// ```
     pub fn where_in(&mut self, column: &str, values: Vec<Value>) -> &mut Self {
+        if let Err(e) = validate_identifier(column) {
+            panic!("{}", e);
+        }
         if values.is_empty() {
             self.conditions.push(("1 = 0".to_string(), vec![]));
             return self;
@@ -160,6 +249,9 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
 
     /// Adds an ORDER BY clause. `asc = true` for ascending, `false` for descending.
     pub fn order(&mut self, column: &str, asc: bool) -> &mut Self {
+        if let Err(e) = validate_identifier(column) {
+            panic!("{}", e);
+        }
         self.order_by.push((column.to_string(), asc));
         self
     }
@@ -170,6 +262,12 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
     /// qb.left_join("orders", "users.id = orders.user_id").find()?;
     /// ```
     pub fn left_join(&mut self, table: &str, on_clause: &str) -> &mut Self {
+        if let Err(e) = validate_identifier(table) {
+            panic!("{}", e);
+        }
+        if let Err(e) = check_sql_injection(on_clause) {
+            panic!("{}", e);
+        }
         self.joins.push(JoinClause {
             join_type: JoinType::Left,
             table: table.to_string(),
@@ -180,6 +278,12 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
 
     /// Adds an INNER JOIN clause.
     pub fn inner_join(&mut self, table: &str, on_clause: &str) -> &mut Self {
+        if let Err(e) = validate_identifier(table) {
+            panic!("{}", e);
+        }
+        if let Err(e) = check_sql_injection(on_clause) {
+            panic!("{}", e);
+        }
         self.joins.push(JoinClause {
             join_type: JoinType::Inner,
             table: table.to_string(),
@@ -190,6 +294,12 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
 
     /// Adds a RIGHT JOIN clause.
     pub fn right_join(&mut self, table: &str, on_clause: &str) -> &mut Self {
+        if let Err(e) = validate_identifier(table) {
+            panic!("{}", e);
+        }
+        if let Err(e) = check_sql_injection(on_clause) {
+            panic!("{}", e);
+        }
         self.joins.push(JoinClause {
             join_type: JoinType::Right,
             table: table.to_string(),
@@ -207,9 +317,54 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.parse_rows(&result.rows)
     }
 
-    /// Executes the query and returns the first matching row, if any.
-    /// Resets chain conditions after execution.
-    pub fn find_one(&mut self) -> Result<Option<M>, Error> {
+ 
+
+    /// Returns the first record ordered by primary key ascending.
+    ///
+    /// If no ORDER BY has been set via chain, defaults to `ORDER BY primary_key ASC`.
+    /// Adds `LIMIT 1` and returns `Option<M>`. Resets chain conditions after execution.
+    ///
+    /// ```rust,ignore
+    /// // Get first user (ordered by id ASC)
+    /// let first_user = qb.first()?;
+    ///
+    /// // Get first user matching conditions
+    /// let first_alice = qb.where_eq("name", Value::from("Alice")).first()?;
+    /// ```
+    pub fn first(&mut self) -> Result<Option<M>, Error> {
+        if self.order_by.is_empty() {
+            self.order_by
+                .push((M::primary_key().to_string(), true));
+        }
+        self.limit_val = Some(1);
+        let (sql, params) = self.build_select_sql();
+        let result = self.driver.query(&sql, &params)?;
+        self.reset_chain();
+        if result.rows.is_empty() {
+            Ok(None)
+        } else {
+            let vals = self.row_to_values(&result.rows[0]);
+            M::from_row(&vals).map(Some).map_err(|e| e.into())
+        }
+    }
+
+    /// Returns the last record ordered by primary key descending.
+    ///
+    /// If no ORDER BY has been set via chain, defaults to `ORDER BY primary_key DESC`.
+    /// Adds `LIMIT 1` and returns `Option<M>`. Resets chain conditions after execution.
+    ///
+    /// ```rust,ignore
+    /// // Get last user (ordered by id DESC)
+    /// let last_user = qb.last()?;
+    ///
+    /// // Get last user matching conditions
+    /// let last_alice = qb.where_eq("name", Value::from("Alice")).last()?;
+    /// ```
+    pub fn last(&mut self) -> Result<Option<M>, Error> {
+        if self.order_by.is_empty() {
+            self.order_by
+                .push((M::primary_key().to_string(), false));
+        }
         self.limit_val = Some(1);
         let (sql, params) = self.build_select_sql();
         let result = self.driver.query(&sql, &params)?;
@@ -238,7 +393,8 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
     }
 
     pub fn build_select_sql(&self) -> (String, Vec<Parameter>) {
-        let mut sql = format!("SELECT * FROM {}", M::table_name());
+        let columns = M::columns().join(", ");
+        let mut sql = format!("SELECT {} FROM {}", columns, M::table_name());
 
         for join in &self.joins {
             sql.push_str(&format!(
@@ -290,14 +446,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         params
     }
 
-    /// Returns all rows from the table without any conditions.
-    /// Resets chain conditions after execution.
-    pub fn find_all(&mut self) -> Result<Vec<M>, Error> {
-        let (sql, params) = self.build_select_sql();
-        let result = self.driver.query(&sql, &params)?;
-        self.reset_chain();
-        self.parse_rows(&result.rows)
-    }
+ 
 
     /// Creates the table for this model if it does not exist.
     ///
@@ -379,10 +528,93 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         Ok(())
     }
 
+    /// 自动迁移：创建表（如果不存在）并添加缺失的列
+    ///
+    /// 该方法会：
+    /// 1. 如果表不存在，创建表（调用 create_table）
+    /// 2. 如果表已存在，检查模型中定义的列是否都在表中，缺失的列会自动添加
+    ///
+    /// # 注意
+    /// - 只支持添加新列，不支持删除列或修改列类型
+    /// - 新列会添加为 NULL 类型（SQLite 不强制类型约束）
+    pub fn auto_migrate(&mut self) -> Result<(), Error> {
+        let schema = M::table_schema();
+        let table = M::table_name();
+        let db_type = self.driver.db_type();
+
+        // 先尝试创建表（如果已存在则不会报错）
+        self.create_table()?;
+
+        // 获取表中现有的列
+        let existing_columns = self.get_table_columns(table)?;
+
+        // 检查并添加缺失的列
+        for col in schema {
+            if !existing_columns.contains(&col.name.to_string()) {
+                let sql_type = rust_to_sql_type(col.rust_type, db_type, col.is_auto_increment);
+                let nullable = if col.is_primary_key { "" } else { " NULL" };
+                let sql = format!(
+                    "ALTER TABLE {} ADD COLUMN {} {}{}",
+                    table, col.name, sql_type, nullable
+                );
+                // 忽略 ALTER TABLE 失败的情况（某些数据库可能不支持）
+                let _ = self.driver.execute(&sql, &[]);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 获取表中现有的列名列表
+    fn get_table_columns(&mut self, table: &str) -> Result<Vec<String>, Error> {
+        let db_type = self.driver.db_type();
+        match db_type {
+            crate::driver::DatabaseType::Sqlite => {
+                // SQLite: PRAGMA table_info
+                let sql = format!("PRAGMA table_info({})", table);
+                let result = self.driver.query(&sql, &[])?;
+                let mut columns = Vec::new();
+                for row in &result.rows {
+                    if let Some(name) = row.get(1) {
+                        columns.push(name.to_string());
+                    }
+                }
+                Ok(columns)
+            }
+            crate::driver::DatabaseType::Mysql => {
+                // MySQL: INFORMATION_SCHEMA
+                let sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?";
+                let result = self.driver.query(sql, &[Parameter::String(table.to_string())])?;
+                let mut columns = Vec::new();
+                for row in &result.rows {
+                    if let Some(name) = row.get(0) {
+                        columns.push(name.to_string());
+                    }
+                }
+                Ok(columns)
+            }
+            crate::driver::DatabaseType::Postgresql => {
+                // PostgreSQL: INFORMATION_SCHEMA
+                let sql = "SELECT column_name FROM information_schema.columns WHERE table_name = $1";
+                let result = self.driver.query(sql, &[Parameter::String(table.to_string())])?;
+                let mut columns = Vec::new();
+                for row in &result.rows {
+                    if let Some(name) = row.get(0) {
+                        columns.push(name.to_string());
+                    }
+                }
+                Ok(columns)
+            }
+            _ => Ok(Vec::new()),
+        }
+    }
+
     /// Finds a single row by its primary key value.
     pub fn find_by_id(&mut self, id: i64) -> Result<Option<M>, Error> {
+        let columns = M::columns().join(", ");
         let sql = format!(
-            "SELECT * FROM {} WHERE {} = ?",
+            "SELECT {} FROM {} WHERE {} = ?",
+            columns,
             M::table_name(),
             M::primary_key()
         );
@@ -396,13 +628,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         }
     }
 
-    /// Finds rows where a column equals a value (simple convenience method).
-    pub fn find_where(&mut self, column: &str, value: Value) -> Result<Vec<M>, Error> {
-        let sql = format!("SELECT * FROM {} WHERE {} = ?", M::table_name(), column);
-        let params = vec![value_to_param(&value)];
-        let result = self.driver.query(&sql, &params)?;
-        self.parse_rows(&result.rows)
-    }
+
 
     /// Inserts a model into the table.
     ///
@@ -447,41 +673,22 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         self.driver.last_insert_id()
     }
 
-    /// Updates a single column on rows matching the current WHERE conditions.
-    ///
-    /// Returns the number of rows affected.
-    /// Requires at least one WHERE condition for safety.
-    pub fn update_one(&mut self, column: &str, value: Value) -> Result<u64, Error> {
-        let (where_clause, mut where_params) = self.build_where_clause();
-        if where_clause.is_empty() {
-            return Err("update requires at least one WHERE condition".into());
-        }
-
-        let sql = format!(
-            "UPDATE {} SET {} = ?{}",
-            M::table_name(),
-            column,
-            where_clause,
-        );
-        let mut params = vec![value_to_param(&value)];
-        params.append(&mut where_params);
-
-        self.reset_chain();
-        self.driver.execute(&sql, &params)
-    }
+  
 
     /// Updates multiple columns from a model's non-zero/non-empty fields.
     ///
+    /// Primary key is always excluded from the SET clause.
     /// Returns the number of rows affected.
     /// Requires at least one WHERE condition for safety.
     pub fn update_model(&mut self, model: &M) -> Result<u64, Error> {
         let values = model.to_values();
         let columns = M::columns();
+        let pk = M::primary_key().to_string();
 
         let set_clauses: Vec<String> = columns
             .iter()
             .enumerate()
-            .filter(|(i, _)| !is_value_default(&values[*i]))
+            .filter(|(i, col)| **col != pk.as_str() && !is_value_default(&values[*i]))
             .map(|(_, col)| format!("{} = ?", col))
             .collect();
 
@@ -504,7 +711,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         let mut set_params: Vec<Parameter> = columns
             .iter()
             .enumerate()
-            .filter(|(i, _)| !is_value_default(&values[*i]))
+            .filter(|(i, col)| **col != pk.as_str() && !is_value_default(&values[*i]))
             .map(|(i, _)| value_to_param(&values[i]))
             .collect();
         set_params.append(&mut where_params);
@@ -566,7 +773,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         let mut values = Vec::new();
         for i in 0..row.column_count() {
             if let Some(val) = row.get(i) {
-                if val == "NULL" || val.is_empty() {
+                if val == "NULL" {
                     values.push(Value::Null);
                 } else if let Ok(i) = val.parse::<i64>() {
                     values.push(Value::I64(i));

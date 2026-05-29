@@ -16,6 +16,7 @@
 - **IN queries**: `where_in("name", vec![...])`
 - **Connection pooling**: gorust channel-based connection pool
 - **Derive macros**: `#[derive(DeriveModel)]` auto-generates `Model` trait
+- **SQL injection protection**: Built-in detection and prevention
 
 ## Quick Start
 
@@ -23,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-grorm = "0.1.0"
+grorm = "0.1.2"
 gorust = "1.5"
 ```
 
@@ -299,6 +300,53 @@ All public APIs return `Result<T, grorm::Error>`. The `Error` enum covers:
 | `Io` | Wrapped I/O errors |
 | `NotFound` | Entity not found |
 | `Transaction` | Begin, commit, rollback errors |
+| `SqlInjection` | SQL injection detection |
+
+## Security
+
+grorm 内置多层 SQL 注入防护：
+
+### 1. 参数化查询
+所有值通过 `?` 占位符传递，避免字符串拼接：
+
+```rust
+// 安全：使用参数化查询
+let users = qb.where_eq("name", Value::from(user_input)).find()?;
+```
+
+### 2. 标识符验证
+表名、列名只允许字母、数字、下划线：
+
+```rust
+use grorm::validate_identifier;
+
+// 验证列名
+validate_identifier("user_name")?;  // Ok
+validate_identifier("user;drop")?;  // Err
+```
+
+### 3. 注入检测
+自动检测以下模式：
+- SQL 注释符 (`--`, `/*`, `#`)
+- 多语句注入（分号后跟 SQL 关键字）
+- 恒真条件 (`OR 1=1`, `AND 1=1` 等)
+- 危险 SQL 关键字（在用户输入中）
+
+```rust
+use grorm::check_sql_injection;
+
+// 检测注入
+check_sql_injection("Alice'--")?;  // Err: SQL comment detected
+check_sql_injection("'; DROP TABLE users")?;  // Err: dangerous pattern
+check_sql_injection("' OR 1=1")?;  // Err: tautology condition
+```
+
+### 4. 自动防护
+QueryBuilder 的以下方法自动应用防护：
+- `where_in()`: 验证列名
+- `order()`: 验证列名
+- `left_join()`, `inner_join()`, `right_join()`: 验证表名和 ON 条件
+- 所有 SQL 执行：检测注入模式
 
 ## Project Structure
 

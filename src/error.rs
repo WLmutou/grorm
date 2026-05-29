@@ -40,6 +40,8 @@ pub enum Error {
     NotFound(String),
     /// Transaction errors (begin, commit, rollback)
     Transaction(String),
+    /// SQL injection detection errors
+    SqlInjection(String),
 }
 
 impl fmt::Display for Error {
@@ -55,6 +57,7 @@ impl fmt::Display for Error {
             Error::Io(err) => write!(f, "io error: {}", err),
             Error::NotFound(msg) => write!(f, "not found: {}", msg),
             Error::Transaction(msg) => write!(f, "transaction error: {}", msg),
+            Error::SqlInjection(msg) => write!(f, "SQL injection detected: {}", msg),
         }
     }
 }
@@ -76,6 +79,7 @@ impl Serialize for Error {
             Error::Io(err) => ("Io", &err.to_string()),
             Error::NotFound(msg) => ("NotFound", msg),
             Error::Transaction(msg) => ("Transaction", msg),
+            Error::SqlInjection(msg) => ("SqlInjection", msg),
         };
 
         let mut state = serializer.serialize_struct("Error", 2)?;

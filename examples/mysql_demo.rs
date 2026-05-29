@@ -37,7 +37,7 @@ fn main() -> std::result::Result<(), Error> {
     let inserted_id = qb.insert(&user)?;
     println!("Inserted user with id: {:?}", inserted_id);
 
-    let users = qb.find_all()?;
+    let users = qb.find()?;
     for u in &users {
         println!("User: {:?}", u);
     }

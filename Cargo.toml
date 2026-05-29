@@ -1,6 +1,6 @@
 [package]
 name = "grorm"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Goroutine-native ORM for Rust with multi-database support"
 authors = ["lijun <1489573464@qq.com>"]

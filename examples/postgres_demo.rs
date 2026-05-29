@@ -5,7 +5,7 @@ use grorm::{
     Value,
 };
 
-#[derive(Debug, DeriveModel)]
+#[derive(Debug, Default, DeriveModel)]
 #[table = "users"]
 struct User {
     id: i64, // 自动主键
@@ -74,8 +74,8 @@ fn run() -> std::result::Result<(), Error> {
     // transaction: update + insert atomically
     {
         let mut tx = Transaction::<User>::begin(conn.driver_mut())?;
-        tx.where_eq("name", Value::from("Alice"))
-            .update_one("age", Value::from(31))?;
+        tx.where_model(&User { name: "Alice".into(), ..Default::default() })
+            .update_model(&User { age: 31, ..Default::default() })?;
         tx.insert(&User {
             id: 0,
             name: "Dave".into(),
@@ -98,21 +98,21 @@ fn run() -> std::result::Result<(), Error> {
             age: 32,
         };
         let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
-        let all = qb.find_all()?;
+        let all = qb.find()?;
         println!("All users: {:?}", all);
     }
 
     // transaction: rollback on drop
     {
         let mut tx = Transaction::<User>::begin(conn.driver_mut())?;
-        tx.where_eq("name", Value::from("Bob"))
-            .update_one("age", Value::from(99))?;
+        tx.where_model(&User { name: "Bob".into(), ..Default::default() })
+            .update_model(&User { age: 99, ..Default::default() })?;
         println!("Transaction rolled back (drop)");
     }
 
     {
         let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
-        let bob = qb.where_eq("name", Value::from("Bob")).find_one()?;
+        let bob = qb.where_model(&User { name: "Bob".into(), ..Default::default() }).first()?;
         println!("Bob after rollback: {:?}", bob);
     }
 

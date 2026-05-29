@@ -4,7 +4,7 @@ use grorm::{
     ConnectionConfig, ConnectionPool, Error, QueryBuilder, SqliteDriverFactory, Transaction, Value,
 };
 
-#[derive(Debug, DeriveModel)]
+#[derive(Debug, Default, DeriveModel)]
 #[table = "users"]
 struct User {
     id: i64, // 自动主键
@@ -17,6 +17,8 @@ struct User {
     #[unique_index = "idx_name_age"]
     last_name: String,
     age: i32,
+    pub created_at: Option<i64>,
+    pub updated_at: Option<i64>,
 }
 
 #[runtime]
@@ -42,6 +44,8 @@ fn main() -> std::result::Result<(), Error> {
             first_name: "Alice".into(),
             last_name: "Doe".into(),
             age: 30,
+            created_at: None,
+            updated_at: None,
         })?;
         qb.insert(&User {
             id: 0,
@@ -50,6 +54,8 @@ fn main() -> std::result::Result<(), Error> {
             first_name: "Bob".into(),
             last_name: "Doe".into(),
             age: 25,
+            created_at: None,
+            updated_at: None,
         })?;
         qb.insert(&User {
             id: 0,
@@ -58,6 +64,8 @@ fn main() -> std::result::Result<(), Error> {
             first_name: "Charlie".into(),
             last_name: "Doe".into(),
             age: 35,
+            created_at: None,
+            updated_at: None,
         })?;
     }
 
@@ -73,8 +81,8 @@ fn main() -> std::result::Result<(), Error> {
     // transaction: update + insert atomically
     {
         let mut tx = Transaction::<User>::begin(conn.driver_mut())?;
-        tx.where_eq("name", Value::from("Alice"))
-            .update_one("age", Value::from(31))?;
+        tx.where_model(&User { name: "Alice".into(), ..Default::default() })
+            .update_model(&User { age: 31, ..Default::default() })?;
         tx.insert(&User {
             id: 0,
             name: "Dave".into(),
@@ -82,6 +90,8 @@ fn main() -> std::result::Result<(), Error> {
             first_name: "Dave".into(),
             last_name: "Doe".into(),
             age: 40,
+            created_at: None,
+            updated_at: None,
         })?;
         tx.commit()?;
         println!("Transaction committed");
@@ -89,21 +99,21 @@ fn main() -> std::result::Result<(), Error> {
 
     {
         let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
-        let all = qb.find_all()?;
+        let all = qb.find()?;
         println!("All users: {:?}", all);
     }
 
     // transaction: rollback on drop
     {
         let mut tx = Transaction::<User>::begin(conn.driver_mut())?;
-        tx.where_eq("name", Value::from("Bob"))
-            .update_one("age", Value::from(99))?;
+        tx.where_model(&User { name: "Bob".into(), ..Default::default() })
+            .update_model(&User { age: 99, ..Default::default() })?;
         println!("Transaction rolled back (drop)");
     }
 
     {
         let mut qb = QueryBuilder::<User>::new(conn.driver_mut());
-        let bob = qb.where_eq("name", Value::from("Bob")).find_one()?;
+        let bob = qb.where_model(&User { name: "Bob".into(), ..Default::default() }).first()?;
         println!("Bob after rollback: {:?}", bob);
     }
 

@@ -217,6 +217,83 @@ impl SqliteConnection {
 
     fn execute_select(&mut self, sql: &str) -> Result<SqliteResult, crate::error::Error> {
         let sql_upper = sql.trim().to_uppercase();
+        
+        // 处理 PRAGMA table_info
+        if sql_upper.starts_with("PRAGMA") && sql_upper.contains("TABLE_INFO") {
+            let table_name = sql
+                .trim()
+                .split('(')
+                .nth(1)
+                .and_then(|s| s.split(')').next())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            
+            if table_name.is_empty() {
+                return Ok(SqliteResult::Rows(Vec::new(), Vec::new()));
+            }
+            
+            // 从 schema 文件中读取表结构
+            let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
+            let schema_path = schema_dir.join(format!(
+                "{}.schema",
+                self.db_path
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+            ));
+            
+            if !schema_path.exists() {
+                return Ok(SqliteResult::Rows(Vec::new(), Vec::new()));
+            }
+            
+            let schema_content = fs::read_to_string(&schema_path)?;
+            
+            // 查找表的 CREATE TABLE 语句
+            let table_schema = schema_content
+                .split("\n\n")
+                .find(|section| section.starts_with(&format!("[{}]", table_name)));
+            
+            if table_schema.is_none() {
+                return Ok(SqliteResult::Rows(Vec::new(), Vec::new()));
+            }
+            
+            let create_sql = table_schema.unwrap()
+                .lines()
+                .skip(1)
+                .collect::<Vec<&str>>()
+                .join("\n");
+            
+            // 解析列信息
+            let columns = self.parse_columns_from_create_sql(&create_sql)?;
+            
+            // PRAGMA table_info 返回格式：cid, name, type, notnull, dflt_value, pk
+            let col_infos = vec![
+                SqliteColumnInfo { name: "cid".to_string(), data_type: "INTEGER".to_string() },
+                SqliteColumnInfo { name: "name".to_string(), data_type: "TEXT".to_string() },
+                SqliteColumnInfo { name: "type".to_string(), data_type: "TEXT".to_string() },
+                SqliteColumnInfo { name: "notnull".to_string(), data_type: "INTEGER".to_string() },
+                SqliteColumnInfo { name: "dflt_value".to_string(), data_type: "TEXT".to_string() },
+                SqliteColumnInfo { name: "pk".to_string(), data_type: "INTEGER".to_string() },
+            ];
+            
+            let mut rows = Vec::new();
+            for (idx, (name, type_name, is_pk)) in columns.iter().enumerate() {
+                let notnull = if idx == 0 { 1 } else { 0 }; // 主键不为空
+                let pk = if *is_pk { 1 } else { 0 };
+                rows.push(vec![
+                    idx.to_string(),
+                    name.clone(),
+                    type_name.clone(),
+                    notnull.to_string(),
+                    "NULL".to_string(),
+                    pk.to_string(),
+                ]);
+            }
+            
+            return Ok(SqliteResult::Rows(rows, col_infos));
+        }
+        
         if sql_upper.starts_with("SELECT") {
             if !sql_upper.contains("FROM") {
                 let col_name = sql[6..]
@@ -929,5 +1006,115 @@ impl SqliteConnection {
             }
         }
         Ok(vec!["*".to_string()])
+    }
+
+    fn parse_columns_from_create_sql(&self, sql: &str) -> Result<Vec<(String, String, bool)>, crate::error::Error> {
+        // 找到括号内的列定义
+        let start = sql.find('(').ok_or("Invalid CREATE TABLE statement")?;
+        let end = sql.rfind(')').ok_or("Invalid CREATE TABLE statement")?;
+        let columns_str = &sql[start + 1..end];
+
+        let mut columns = Vec::new();
+        
+        // 分割列定义（需要处理嵌套的括号）
+        let mut depth = 0;
+        let mut current = String::new();
+        for c in columns_str.chars() {
+            if c == '(' {
+                depth += 1;
+                current.push(c);
+            } else if c == ')' {
+                depth -= 1;
+                current.push(c);
+            } else if c == ',' && depth == 0 {
+                if let Some(col_def) = self.parse_column_definition(current.trim()) {
+                    columns.push(col_def);
+                }
+                current = String::new();
+            } else {
+                current.push(c);
+            }
+        }
+        
+        // 处理最后一个列定义
+        if !current.trim().is_empty() {
+            if let Some(col_def) = self.parse_column_definition(current.trim()) {
+                columns.push(col_def);
+            }
+        }
+
+        Ok(columns)
+    }
+
+    fn parse_column_definition(&self, col_def: &str) -> Option<(String, String, bool)> {
+        let col_def = col_def.trim();
+        
+        // 跳过约束（PRIMARY KEY, UNIQUE, CHECK 等）
+        let upper = col_def.to_uppercase();
+        if upper.starts_with("PRIMARY KEY") 
+            || upper.starts_with("UNIQUE") 
+            || upper.starts_with("CHECK")
+            || upper.starts_with("FOREIGN KEY")
+            || upper.starts_with("CONSTRAINT") {
+            return None;
+        }
+
+        // 解析列名和类型
+        let parts: Vec<&str> = col_def.split_whitespace().collect();
+        if parts.is_empty() {
+            return None;
+        }
+
+        let name = parts[0].trim_matches(|c: char| c == '"' || c == '`' || c == '\'').to_string();
+        let type_name = if parts.len() > 1 {
+            parts[1].to_string()
+        } else {
+            "TEXT".to_string()
+        };
+
+        let is_pk = upper.contains("PRIMARY KEY");
+
+        Some((name, type_name, is_pk))
+    }
+
+    pub fn add_column_to_existing_data(&mut self, table_name: &str, column_name: &str, default_value: &str) -> Result<(), crate::error::Error> {
+        let schema_dir = self.db_path.parent().unwrap_or(std::path::Path::new("."));
+        let data_path = schema_dir.join(format!(
+            "{}.{}.data",
+            self.db_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            table_name
+        ));
+
+        if !data_path.exists() {
+            return Ok(());
+        }
+
+        let content = fs::read_to_string(&data_path)?;
+        if content.is_empty() {
+            return Ok(());
+        }
+
+        let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+        if lines.is_empty() {
+            return Ok(());
+        }
+
+        // 更新第一行（列头）
+        let header = lines[0].clone();
+        lines[0] = format!("{}\x1f{}", header, column_name);
+
+        // 为每一行数据添加新列的默认值
+        for i in 1..lines.len() {
+            if !lines[i].is_empty() {
+                lines[i] = format!("{}\x1f{}", lines[i], default_value);
+            }
+        }
+
+        let new_content = lines.join("\n") + "\n";
+        fs::write(&data_path, new_content)?;
+        Ok(())
     }
 }
