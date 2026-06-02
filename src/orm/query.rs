@@ -464,7 +464,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         let mut pk_cols: Vec<&str> = Vec::new();
 
         for col in schema {
-            let sql_type = rust_to_sql_type(col.rust_type, db_type, col.is_auto_increment);
+            let sql_type = rust_to_sql_type(col.rust_type, db_type, col.is_primary_key && (col.rust_type.eq_ignore_ascii_case("i32") || col.rust_type.eq_ignore_ascii_case("i64") || col.rust_type.eq_ignore_ascii_case("Id") || col.rust_type.eq_ignore_ascii_case("id")));
             let mut def = format!("{} {}", col.name, sql_type);
 
             if col.is_primary_key {
@@ -551,7 +551,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         // 检查并添加缺失的列
         for col in schema {
             if !existing_columns.contains(&col.name.to_string()) {
-                let sql_type = rust_to_sql_type(col.rust_type, db_type, col.is_auto_increment);
+                let sql_type = rust_to_sql_type(col.rust_type, db_type, col.is_primary_key && (col.rust_type.eq_ignore_ascii_case("i32") || col.rust_type.eq_ignore_ascii_case("i64") || col.rust_type.eq_ignore_ascii_case("Id") || col.rust_type.eq_ignore_ascii_case("id")));
                 let nullable = if col.is_primary_key { "" } else { " NULL" };
                 let sql = format!(
                     "ALTER TABLE {} ADD COLUMN {} {}{}",
@@ -595,7 +595,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
             }
             crate::driver::DatabaseType::Postgresql => {
                 // PostgreSQL: INFORMATION_SCHEMA
-                let sql = "SELECT column_name FROM information_schema.columns WHERE table_name = $1";
+                let sql = "SELECT column_name FROM information_schema.columns WHERE table_name = ?";
                 let result = self.driver.query(sql, &[Parameter::String(table.to_string())])?;
                 let mut columns = Vec::new();
                 for row in &result.rows {

@@ -56,6 +56,7 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
         let ty_str = quote! { #ty }.to_string();
         let is_pk = fname_str == primary_key;
         let is_auto = is_pk && is_integer_type(&ty_str);
+        let is_auto = is_pk && is_integer_type(&ty_str);
         let is_index = has_field_attr(&f.attrs, "index");
         let is_unique = has_field_attr(&f.attrs, "unique");
         let unique_index_name: Option<String> = get_attr(&f.attrs, "unique_index");
