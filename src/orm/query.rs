@@ -675,7 +675,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
 
   
 
-    /// Updates multiple columns from a model's non-zero/non-empty fields.
+    /// Updates all columns from a model, including zero/default values.
     ///
     /// Primary key is always excluded from the SET clause.
     /// Returns the number of rows affected.
@@ -688,12 +688,12 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         let set_clauses: Vec<String> = columns
             .iter()
             .enumerate()
-            .filter(|(i, col)| **col != pk.as_str() && !is_value_default(&values[*i]))
+            .filter(|(_, col)| **col != pk.as_str())
             .map(|(_, col)| format!("{} = ?", col))
             .collect();
 
         if set_clauses.is_empty() {
-            return Err("no non-zero fields to update".into());
+            return Err("no fields to update".into());
         }
 
         let (where_clause, mut where_params) = self.build_where_clause();
@@ -711,7 +711,7 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
         let mut set_params: Vec<Parameter> = columns
             .iter()
             .enumerate()
-            .filter(|(i, col)| **col != pk.as_str() && !is_value_default(&values[*i]))
+            .filter(|(_, col)| **col != pk.as_str())
             .map(|(i, _)| value_to_param(&values[i]))
             .collect();
         set_params.append(&mut where_params);

@@ -139,7 +139,7 @@ impl<'a, M: Model> Transaction<'a, M> {
     }
 
 
-    /// Updates multiple columns from a model's non-zero fields.
+    /// Updates all columns from a model, including zero/default values.
     pub fn update_model(&mut self, model: &M) -> Result<u64, Error> {
         self.qb.update_model(model)
     }
