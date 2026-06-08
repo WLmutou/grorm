@@ -2,10 +2,12 @@ use crate::driver::default::DefaultDriverFactory;
 use crate::driver::{ConnectionConfig, DatabaseDriver, DriverFactory};
 use crate::error::Error;
 use gorust::channel::{self, Receiver, Sender};
+use gorust::sleep;
 use parking_lot::Mutex;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 type PooledConnection = Box<dyn DatabaseDriver>;
 
@@ -36,7 +38,7 @@ impl Default for ConnectionPool {
             notify_rx,
             config: ConnectionConfig::default(), // 需要实现 Default
             factory: Box::new(DefaultDriverFactory), // 需要具体类型
-            max_size: 10,                        // 默认最大连接数
+            max_size: 100,                        // 默认最大连接数
             current_size: AtomicUsize::new(0),
         };
 
@@ -103,22 +105,43 @@ impl ConnectionPool {
             });
         }
 
-        let _ = self.inner.notify_rx.recv();
-
-        let mut available = self.inner.available.lock();
-        if let Some(idx) = available.pop_front() {
-            let mut connections = self.inner.connections.lock();
-            if let Some(Some(_)) = connections.get(idx) {
-                let conn = connections[idx].take().unwrap();
-                return Ok(PoolConnection {
-                    pool: self.inner.clone(),
-                    index: idx,
-                    conn: Some(conn),
-                });
+        // Wait for available connection with timeout
+        let timeout = Duration::from_secs(5);
+        let deadline = Instant::now() + timeout;
+        loop {
+            // Try to get an available connection first
+            {
+                let mut available = self.inner.available.lock();
+                if let Some(idx) = available.pop_front() {
+                    let mut connections = self.inner.connections.lock();
+                    if let Some(Some(conn)) = connections.get(idx) {
+                        if conn.is_connected() {
+                            let conn = connections[idx].take().unwrap();
+                            return Ok(PoolConnection {
+                                pool: self.inner.clone(),
+                                index: idx,
+                                conn: Some(conn),
+                            });
+                        }
+                        // Connection not valid, put index back and continue
+                        available.push_back(idx);
+                        drop(connections);
+                        drop(available);
+                        sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    // Connection already taken by another request, put index back
+                    available.push_back(idx);
+                }
             }
-        }
 
-        Err("Pool closed".into())
+            if Instant::now() >= deadline {
+                return Err(Error::from("Connection pool timeout: waited 5 seconds for available connection"));
+            }
+
+            // Wait a bit before retrying
+            sleep(Duration::from_millis(10));
+        }
     }
 
     pub fn close(&self) {
