@@ -25,6 +25,9 @@ pub struct PgConnection {
     stream: AsyncTcpStream,
     username: String,
     password: String,
+    read_buf: Vec<u8>,
+    read_pos: usize,
+    read_end: usize,
 }
 
 impl PgConnection {
@@ -39,11 +42,87 @@ impl PgConnection {
             stream,
             username: username.to_string(),
             password: password.to_string(),
+            read_buf: vec![0u8; 8192],
+            read_pos: 0,
+            read_end: 0,
         };
         conn.send_startup_message(username, database)?;
         conn.read_authentication()?;
         conn.read_until_ready()?;
         Ok(conn)
+    }
+
+    // ============ 缓冲读取（减少系统调用） ============
+
+    /// 确保缓冲区有至少 `needed` 字节可用。
+    fn ensure_buf(&mut self, needed: usize) -> Result<(), crate::error::Error> {
+        if self.read_end - self.read_pos >= needed {
+            return Ok(());
+        }
+        // 将剩余数据移到头部
+        if self.read_pos > 0 && self.read_pos < self.read_end {
+            self.read_buf.copy_within(self.read_pos..self.read_end, 0);
+            self.read_end -= self.read_pos;
+            self.read_pos = 0;
+        } else if self.read_pos >= self.read_end {
+            self.read_pos = 0;
+            self.read_end = 0;
+        }
+        // 确保容量
+        if self.read_buf.len() < needed {
+            self.read_buf.resize(needed, 0);
+        }
+        while self.read_end - self.read_pos < needed {
+            let n = self.stream.read(&mut self.read_buf[self.read_end..])?;
+            if n == 0 {
+                return Err("Connection closed by peer".into());
+            }
+            self.read_end += n;
+        }
+        Ok(())
+    }
+
+    fn read_byte(&mut self) -> Result<u8, crate::error::Error> {
+        self.ensure_buf(1)?;
+        let b = self.read_buf[self.read_pos];
+        self.read_pos += 1;
+        Ok(b)
+    }
+
+    fn read_i16(&mut self) -> Result<i16, crate::error::Error> {
+        self.ensure_buf(2)?;
+        let val = i16::from_be_bytes([
+            self.read_buf[self.read_pos],
+            self.read_buf[self.read_pos + 1],
+        ]);
+        self.read_pos += 2;
+        Ok(val)
+    }
+
+    fn read_i32(&mut self) -> Result<i32, crate::error::Error> {
+        self.ensure_buf(4)?;
+        let val = i32::from_be_bytes([
+            self.read_buf[self.read_pos],
+            self.read_buf[self.read_pos + 1],
+            self.read_buf[self.read_pos + 2],
+            self.read_buf[self.read_pos + 3],
+        ]);
+        self.read_pos += 4;
+        Ok(val)
+    }
+
+    fn skip_bytes(&mut self, count: usize) -> Result<(), crate::error::Error> {
+        self.ensure_buf(count)?;
+        self.read_pos += count;
+        Ok(())
+    }
+
+    /// 从缓冲区读取指定长度的数据。
+    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), crate::error::Error> {
+        self.ensure_buf(buf.len())?;
+        buf.copy_from_slice(&self.read_buf[self.read_pos..self.read_pos + buf.len()]);
+        self.read_pos += buf.len();
+        Ok(())
     }
 
     fn send_startup_message(
@@ -81,7 +160,7 @@ impl PgConnection {
                         0 => break,
                         5 => {
                             let mut salt = [0u8; 4];
-                            self.stream.read(&mut salt)?;
+                            self.read_exact(&mut salt)?;
 
                             let mut hasher = Md5::new();
                             hasher.update(self.password.as_bytes());
@@ -107,7 +186,7 @@ impl PgConnection {
                 }
                 b'E' => {
                     let mut err_buf = vec![0u8; (len - 4) as usize];
-                    self.stream.read(&mut err_buf)?;
+                    self.read_exact(&mut err_buf)?;
                     let err_str = String::from_utf8_lossy(&err_buf);
                     return Err(format!("PostgreSQL error: {}", err_str).into());
                 }
@@ -145,7 +224,7 @@ impl PgConnection {
                 }
                 b'E' => {
                     let mut err_buf = vec![0u8; (len - 4) as usize];
-                    self.stream.read(&mut err_buf)?;
+                    self.read_exact(&mut err_buf)?;
                     return Err(
                         format!("PostgreSQL error: {}", String::from_utf8_lossy(&err_buf)).into(),
                     );
@@ -224,7 +303,7 @@ impl PgConnection {
                             row.push("NULL".to_string());
                         } else {
                             let mut val_buf = vec![0u8; val_len as usize];
-                            self.stream.read(&mut val_buf)?;
+                            self.read_exact(&mut val_buf)?;
                             row.push(String::from_utf8_lossy(&val_buf).to_string());
                         }
                     }
@@ -247,7 +326,7 @@ impl PgConnection {
                 }
                 b'E' => {
                     let mut err_buf = vec![0u8; (len - 4) as usize];
-                    self.stream.read(&mut err_buf)?;
+                    self.read_exact(&mut err_buf)?;
                     return Err(
                         format!("PostgreSQL error: {}", String::from_utf8_lossy(&err_buf)).into(),
                     );
@@ -349,29 +428,5 @@ impl PgConnection {
         self.stream.write_all(&buf)?;
 
         self.read_query_result()
-    }
-
-    fn read_byte(&mut self) -> Result<u8, crate::error::Error> {
-        let mut buf = [0u8; 1];
-        self.stream.read(&mut buf)?;
-        Ok(buf[0])
-    }
-
-    fn read_i16(&mut self) -> Result<i16, crate::error::Error> {
-        let mut buf = [0u8; 2];
-        self.stream.read(&mut buf)?;
-        Ok(i16::from_be_bytes(buf))
-    }
-
-    fn read_i32(&mut self) -> Result<i32, crate::error::Error> {
-        let mut buf = [0u8; 4];
-        self.stream.read(&mut buf)?;
-        Ok(i32::from_be_bytes(buf))
-    }
-
-    fn skip_bytes(&mut self, count: usize) -> Result<(), crate::error::Error> {
-        let mut buf = vec![0u8; count];
-        self.stream.read(&mut buf)?;
-        Ok(())
     }
 }

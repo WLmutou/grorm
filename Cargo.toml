@@ -10,7 +10,7 @@ keywords = ["orm", "postgresql", "mysql", "sqlite", "gorust"]
 categories = ["database", "asynchronous"]
 
 [dependencies]
-gorust = "0.1.8"
+gorust = { path = "../gorust" }
 grorm-macros = "0.1.0"
 byteorder = "1.4"
 parking_lot = "0.12"
