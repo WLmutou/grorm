@@ -24,7 +24,20 @@ impl Value {
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             Value::Bool(v) => Some(*v),
+            Value::I8(v) => Some(*v != 0),
+            Value::I16(v) => Some(*v != 0),
+            Value::I32(v) => Some(*v != 0),
             Value::I64(v) => Some(*v != 0),
+            Value::U8(v) => Some(*v != 0),
+            Value::U16(v) => Some(*v != 0),
+            Value::U32(v) => Some(*v != 0),
+            Value::U64(v) => Some(*v != 0),
+            Value::F64(v) => Some(*v != 0.0),
+            Value::String(v) => match v.to_lowercase().as_str() {
+                "t" | "true" | "1" | "yes" => Some(true),
+                "f" | "false" | "0" | "no" => Some(false),
+                _ => None,
+            },
             _ => None,
         }
     }
