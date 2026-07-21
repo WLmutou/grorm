@@ -81,6 +81,21 @@ impl FromSql for Vec<u8> {
     }
 }
 
+impl FromSql for Vec<String> {
+    fn from_sql(value: &Value) -> Result<Self, String> {
+        match value {
+            Value::Null => Ok(Vec::new()),
+            Value::String(s) => {
+                serde_json::from_str(s).map_err(|e| format!("cannot parse JSON array from {:?}: {}", value, e))
+            }
+            _ => {
+                let s = value.as_string().ok_or_else(|| format!("cannot convert {:?} to Vec<String>", value))?;
+                serde_json::from_str(&s).map_err(|e| format!("cannot parse JSON array from {:?}: {}", value, e))
+            }
+        }
+    }
+}
+
 impl<T: FromSql> FromSql for Option<T> {
     fn from_sql(value: &Value) -> Result<Self, String> {
         if value.is_null() {

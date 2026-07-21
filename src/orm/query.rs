@@ -471,7 +471,10 @@ impl<'a, M: Model> QueryBuilder<'a, M> {
                 pk_cols.push(col.name);
             }
 
-            if !col.is_primary_key {
+            // Option<T> 和 Vec<T> 类型列应该允许 NULL
+            let is_nullable = col.rust_type.trim().to_lowercase().starts_with("option")
+                || col.rust_type.trim().to_lowercase().starts_with("vec");
+            if !col.is_primary_key && !is_nullable {
                 def.push_str(" NOT NULL");
             }
 

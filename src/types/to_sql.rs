@@ -64,6 +64,13 @@ impl ToSql for Vec<u8> {
     }
 }
 
+impl ToSql for Vec<String> {
+    fn to_sql(&self) -> Value {
+        let json_str = serde_json::to_string(self).unwrap_or_else(|_| "[]".to_string());
+        Value::String(json_str)
+    }
+}
+
 impl<T: ToSql> ToSql for Option<T> {
     fn to_sql(&self) -> Value {
         match self {

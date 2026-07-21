@@ -35,7 +35,9 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
         let ty = &f.ty;
         quote! {
             #fname: {
-                let val = &row[#i];
+                let val = row.get(#i).ok_or_else(|| {
+                    format!("field '{}': index out of bounds (len={}, index={})", stringify!(#fname), row.len(), #i)
+                })?;
                 <#ty as ::grorm::FromSql>::from_sql(val)
                     .map_err(|e| format!("field '{}': {}", stringify!(#fname), e))?
             },
